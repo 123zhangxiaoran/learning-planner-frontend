@@ -77,7 +77,7 @@ interface Props {
 }
 
 // 默认Props值
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   titleBadge: 'AI 助手',
   title: '你想了解什么？',
   subtitle: '告诉我你的需求，我会为你提供建议',
@@ -86,7 +86,7 @@ const props = withDefaults(defineProps<Props>(), {
   suggestions: () => [],
   showUserMessage: false,
   userMessage: '',
-  placeholder: '请输入你的问题...'
+  placeholder: '请输入你的问题...',
 })
 
 const emit = defineEmits<{
@@ -265,6 +265,7 @@ const onSendMessage = () => {
 
 .input-wrapper {
   display: flex;
+  align-items: center;
   gap: 1rem;
   background: var(--bg-card);
   border: 1px solid var(--accent-orange);

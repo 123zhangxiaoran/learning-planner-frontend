@@ -682,7 +682,7 @@ onUnmounted(() => {
 .anti-ai-widget {
   position: fixed;
   bottom: 2rem;
-  right: 2rem;
+  left: 2rem;
   width: 280px;
   background: var(--bg-card);
   border: 2px solid var(--accent-yellow);

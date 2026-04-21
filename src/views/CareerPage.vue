@@ -38,7 +38,6 @@
         <div class="chat-container">
           <!-- AI消息 -->
           <div class="message ai-message">
-            <div class="message-avatar">🤖</div>
             <div class="message-bubble">
               <p>你好！我是职业规划AI助手。你可以问我：</p>
               <ul class="suggestions">
@@ -50,11 +49,10 @@
           </div>
 
           <!-- 用户消息 -->
-          <div class="message user-message">
+          <div v-if="userMessage" class="message user-message">
             <div class="message-bubble">
-              <p>我想了解技术开发相关的工作</p>
+              <p>{{ userMessage }}</p>
             </div>
-            <div class="message-avatar">👤</div>
           </div>
 
           <!-- 静态数据展示区域 -->
@@ -115,25 +113,11 @@
         </div>
 
         <!-- 输入区域 -->
-        <div class="input-container">
-          <div class="input-wrapper">
-            <input
-              v-model="userInput"
-              type="text"
-              placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
-              class="chat-input"
-            />
-            <button @click="sendMessage" class="send-button" :class="{ active: userInput.trim() }">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path
-                  d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <ChatInput
+          v-model="userInput"
+          placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
+          @send="sendMessage"
+        />
       </section>
     </main>
 
@@ -150,12 +134,14 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/layout/NavBar.vue'
+import ChatInput from '@/components/layout/ChatInput.vue'
 
 const router = useRouter()
 
 // 静态数据
 const userInput = ref('')
 const showCareerOptions = ref(false)
+const userMessage = ref('')
 
 // 职业选项静态数据
 const careerOptions = ref([
@@ -218,7 +204,7 @@ const careerOptions = ref([
 // 模拟发送消息
 const sendMessage = () => {
   if (userInput.value.trim()) {
-    showCareerOptions.value = true
+    userMessage.value = userInput.value
     userInput.value = ''
   }
 }
@@ -387,53 +373,27 @@ const goToSkillPage = () => {
 
 .message-bubble {
   max-width: 70%;
-  background: var(--bg-dark);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 18px;
   padding: 1rem 1.5rem;
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.message.ai-message .message-bubble::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 8px 8px 0;
-  border-color: transparent var(--border-color) transparent transparent;
+.message.ai-message .message-bubble {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
-.message.ai-message .message-bubble::after {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 8px 8px 0;
-  border-color: transparent var(--bg-dark) transparent transparent;
-}
+/* 用户消息气泡样式 */
 
 .message.user-message .message-bubble {
   background: var(--accent-orange);
   color: var(--bg-dark);
-  border-color: var(--accent-orange);
-}
-
-.message.user-message .message-bubble::before {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 0 8px 8px;
-  border-color: transparent transparent transparent var(--accent-orange);
+  border: none;
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
 }
 
 /* 建议列表 */
@@ -604,68 +564,6 @@ const goToSkillPage = () => {
   border-color: var(--accent-orange);
   color: var(--bg-dark);
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
-}
-
-/* ========= 输入区域 ========= */
-.input-container {
-  position: relative;
-}
-
-.input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--accent-orange);
-  border-radius: 50px;
-  padding: 0.5rem;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 107, 53, 0.2);
-  transition: all 0.3s;
-}
-
-.chat-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  padding: 1rem 1.5rem;
-  color: var(--text-primary);
-  font-size: 1rem;
-  outline: none;
-}
-
-.chat-input::placeholder {
-  color: var(--text-secondary);
-}
-
-.send-button {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--border-color);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-secondary);
-}
-
-.send-button.active {
-  background: var(--accent-orange);
-  color: var(--bg-dark);
-  transform: rotate(0deg);
-}
-
-.send-button.active:hover {
-  transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
-}
-
-.send-button svg {
-  width: 20px;
-  height: 20px;
 }
 
 /* ========= 下一步按钮 ========= */

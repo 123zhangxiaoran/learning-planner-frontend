@@ -2,11 +2,13 @@
   <div id="app">
     <!-- 路由视图：渲染当前页面（Home/Game/Login 等） -->
     <router-view />
+    <!-- 全局AI小助手 -->
+    <AiAssistant />
   </div>
 </template>
 
 <script setup lang="ts">
-// 这里暂时不需要写逻辑，路由和状态都由子页面管理
+import AiAssistant from '@/components/layout/AiAssistant.vue'
 </script>
 
 <style>
