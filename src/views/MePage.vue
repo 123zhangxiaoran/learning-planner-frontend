@@ -26,6 +26,9 @@
       <!-- 用户信息卡片 -->
       <section class="profile-section">
         <div class="profile-card">
+          <!-- 几何图案头像 - 使用组件 -->
+          <GeoAvatar :user-id="playerStore.playerInfo?.id || 0" :size="80" />
+
           <div class="profile-info">
             <h2 class="username">{{ playerStore.playerInfo?.nickname }}</h2>
             <p class="user-id">学路ID: {{ String(playerStore.playerInfo?.id).padStart(8, '0') }}</p>
@@ -168,6 +171,7 @@
 
 <script setup lang="ts">
 import NavBar from '@/components/layout/NavBar.vue'
+import GeoAvatar from '@/components/layout/GeoAvatar.vue'
 import { usePlayerStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
@@ -277,16 +281,6 @@ function handleLogout() {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   flex-wrap: wrap;
-}
-
-.avatar-container {
-  position: relative;
-}
-
-.avatar-icon {
-  width: 80px;
-  height: 80px;
-  display: block;
 }
 
 .profile-info {
