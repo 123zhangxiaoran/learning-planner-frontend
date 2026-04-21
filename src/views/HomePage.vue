@@ -33,8 +33,8 @@
             <span class="highlight">但你不一定要听它的。</span>
           </p>
           <div class="hero-actions">
-            <router-link to="/user/room" class="btn-primary">
-              <span>砸出我的路线</span>
+            <router-link to="/user/career" class="btn-primary">
+              <span>开启职业探索</span>
               <svg
                 class="btn-arrow"
                 viewBox="0 0 24 24"
@@ -75,7 +75,7 @@
       <section class="features-section">
         <!-- 大卡片 - 职业探索 -->
         <router-link
-          to="/user/game"
+          to="/user/career"
           class="feature-card feature-card-large"
           style="--rotation: -1deg"
         >
@@ -106,7 +106,7 @@
             <h3 class="card-title">职业探索</h3>
           </div>
           <p class="card-description">
-            看看哪些岗位今年涨薪最快，哪些正在被AI取代。别等毕业了才发现选错了赛道。
+            你的专业能干嘛？AI来康康，说不定能挖到宝~
           </p>
           <span class="card-link"> 去查看 → </span>
           <div class="card-sketch-decoration">
@@ -123,9 +123,9 @@
           </div>
         </router-link>
 
-        <!-- 小卡片 - 路线规划 -->
+        <!-- 小卡片 - 技能分析 -->
         <router-link
-          to="/user/room"
+          to="/user/skill"
           class="feature-card feature-card-small"
           style="--rotation: 1.5deg; margin-top: 40px"
         >
@@ -153,15 +153,15 @@
                 </text>
               </svg>
             </div>
-            <h3 class="card-title">路线规划</h3>
+            <h3 class="card-title">技能分析</h3>
           </div>
-          <p class="card-description">AI生成，拖拽节点，调整顺序，打造属于你自己的路径。</p>
-          <span class="card-link"> 开始规划 → </span>
+          <p class="card-description">想不想知道自己缺啥技能？AI来把把脉，对症下药，让你悄悄变强~</p>
+          <span class="card-link"> 技能分析 → </span>
         </router-link>
 
-        <!-- 中卡片 - 学习资源 -->
+        <!-- 中卡片 - 知识库存 -->
         <router-link
-          to="/user/room"
+          to="/user/knowledge"
           class="feature-card feature-card-medium"
           style="--rotation: -0.5deg; margin-left: 5%"
         >
@@ -189,10 +189,10 @@
                 </text>
               </svg>
             </div>
-            <h3 class="card-title">学习资源</h3>
+            <h3 class="card-title">知识库存</h3>
           </div>
-          <p class="card-description">精选课程、书籍、项目。没有废话，只有干货。</p>
-          <span class="card-link"> 查看资源 → </span>
+          <p class="card-description">悄悄告诉你，这里存着AI给你写的独门笔记~</p>
+          <span class="card-link"> 查看库存 → </span>
         </router-link>
 
         <!-- 小卡片 - 个人中心 -->
@@ -227,7 +227,7 @@
             </div>
             <h3 class="card-title">个人中心</h3>
           </div>
-          <p class="card-description">记录进度，收藏路线，见证自己的从0到1。</p>
+          <p class="card-description">你的成长黑历史...哦不，是光辉历程，都在这里啦~</p>
           <span class="card-link"> 我的空间 → </span>
         </router-link>
       </section>

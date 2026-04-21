@@ -14,11 +14,23 @@ const routes = [
     name: 'user-login',
     component: () => import('@/views/LoginPage.vue'),
   },
-  // 房间页面
+  // 职业页面
   {
-    path: '/user/room',
-    name: 'user-room',
-    component: () => import('@/views/RoomPlayer.vue'),
+    path: '/user/career',
+    name: 'user-career',
+    component: () => import('@/views/CareerPage.vue'),
+  },
+  // 技能页面
+  {
+    path: '/user/skill',
+    name: 'user-skill',
+    component: () => import('@/views/SkillPage.vue'),
+  },
+  // 知识库存页面
+  {
+    path: '/user/knowledge',
+    name: 'user-knowledge',
+    component: () => import('@/views/KnowledgePage.vue'),
   },
   // 个人主页
   {

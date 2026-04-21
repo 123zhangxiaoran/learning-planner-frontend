@@ -6,8 +6,8 @@
     </div>
     <div class="nav-links">
       <router-link to="/" class="nav-link" :class="{ active: isActive('/') }">首页</router-link>
-      <router-link to="/user/game" class="nav-link" :class="{ active: isActive('/user/game') }">职业探索</router-link>
-      <router-link to="/user/room" class="nav-link" :class="{ active: isActive('/user/room') }">路线规划</router-link>
+      <router-link to="/user/career" class="nav-link" :class="{ active: isActive('/user/career') }">职业探索</router-link>
+      <router-link to="/user/skill" class="nav-link" :class="{ active: isActive('/user/skill') }">技能分析</router-link>
       <router-link to="/user/me" class="nav-link" :class="{ active: isActive('/user/me') }">个人中心</router-link>
     </div>
   </nav>
