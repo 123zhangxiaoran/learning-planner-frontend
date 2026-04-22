@@ -23,7 +23,7 @@ const baseURL = isLocal ? '/api' : 'http://192.168.253.1:8820/api'
 
 const request = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 60000,
   withCredentials: true,
 })
 

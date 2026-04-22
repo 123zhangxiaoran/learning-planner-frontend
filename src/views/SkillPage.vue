@@ -24,27 +24,12 @@
     <!-- 技能分析区域 -->
     <main class="main-content">
       <section class="skill-section">
-        <!-- 标题区域 -->
-        <div class="section-header">
-          <div class="header-badge">技能分析</div>
-          <h1 class="section-title">选择你的技能路径</h1>
-          <p class="section-subtitle">
-            根据你的选择，为你推荐相应的学习路径<br />
-            <span class="highlight">开始你的技能提升之旅！</span>
-          </p>
-        </div>
-
         <!-- AI对话框组件 -->
         <AIDialog
-          titleBadge="技能路径"
+          titleBadge="技能学习"
           title="分析你的技能树"
-          subtitle="告诉我你掌握的技能，我来为你规划学习路径"
+          subtitle="告诉我你想掌握的技能，我来为你规划学习路径"
           highlightText="选择技能开始你的提升计划。"
-          aiMessage="我发现你在前端开发方面有一定基础！以下是我为你推荐的技能提升路径，选择你感兴趣的技能方向开启学习："
-          :suggestions="['了解前端框架', '深入学习JavaScript', '掌握CSS高级特性']"
-          :showUserMessage="showUserMessage"
-          :userMessage="userMessage"
-          placeholder="例如：我想学习React进阶内容..."
           @sendMessage="handleSendMessage"
         >
           <!-- 插槽内容：技能选择卡片 -->
@@ -72,7 +57,7 @@
 
           <!-- 继续下一步按钮 -->
           <div class="next-step">
-            <button class="next-btn" :class="{ disabled: !selectedSkill }">🚀 生成学习计划</button>
+            <button class="next-btn" :class="{ disabled: !selectedSkill }">生成学习计划...</button>
           </div>
 
           <!-- 返回按钮 -->
@@ -82,13 +67,6 @@
         </AIDialog>
       </section>
     </main>
-
-    <!-- 浮动装饰元素 -->
-    <div class="floating-decoration">
-      <div class="decoration-item">💡</div>
-      <div class="decoration-item">📈</div>
-      <div class="decoration-item">🎯</div>
-    </div>
   </div>
 </template>
 
@@ -198,45 +176,6 @@ const handleSelectSkill = (skillId: number) => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 3rem 5% 3rem 8%;
-}
-
-/* ========= 头部区域 ========= */
-.section-header {
-  margin-bottom: 3rem;
-  max-width: 600px;
-}
-
-.header-badge {
-  display: inline-block;
-  background: var(--accent-orange);
-  color: var(--bg-dark);
-  padding: 0.4rem 1rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 1.5rem;
-  transform: rotate(-1deg);
-}
-
-.section-title {
-  font-size: 3rem;
-  font-weight: 900;
-  line-height: 1.1;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-  letter-spacing: -0.03em;
-}
-
-.section-subtitle {
-  font-size: 1.1rem;
-  line-height: 1.8;
-  color: var(--text-secondary);
-}
-
-.section-subtitle .highlight {
-  color: var(--accent-yellow);
-  font-weight: 600;
 }
 
 /* ========= 技能卡片布局 ========= */
@@ -477,10 +416,6 @@ const handleSelectSkill = (skillId: number) => {
 @media (max-width: 768px) {
   .main-content {
     padding: 1.5rem 1rem;
-  }
-
-  .section-title {
-    font-size: 2rem;
   }
 
   .skill-content {

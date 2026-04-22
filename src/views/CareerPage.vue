@@ -55,11 +55,18 @@
             </div>
           </div>
 
+          <!-- AI回复消息 -->
+          <div v-if="aiMessage" class="message ai-message">
+            <div class="message-bubble">
+              <p>{{ aiMessage }}</p>
+            </div>
+          </div>
+
           <!-- 静态数据展示区域 -->
           <div v-if="showCareerOptions" class="career-options">
             <div class="options-header">
               <div class="options-badge">为你推荐</div>
-              <h3>技术开发相关职业</h3>
+              <h3>{{ careerOptions[0]?.major || '技术开发' }}相关职业</h3>
             </div>
 
             <div class="career-grid">
@@ -69,15 +76,11 @@
                 class="career-card"
                 @click="viewCareerDetail(career.id)"
               >
-                <div class="card-icon">{{ career.icon }}</div>
                 <h4 class="card-title">{{ career.title }}</h4>
                 <p class="card-description">{{ career.description }}</p>
-                <div class="card-tags">
-                  <span v-for="tag in career.tags" :key="tag" class="tag">{{ tag }}</span>
-                </div>
                 <div class="card-stats">
-                  <span class="stat">{{ career.salary }}</span>
-                  <span class="stat">{{ career.demand }}</span>
+                  <span class="stat">专业: {{ career.major }}</span>
+                  <span class="stat">匹配度: {{ Math.round(career.similarity * 100) }}%</span>
                 </div>
                 <div class="card-sketch">
                   <svg viewBox="0 0 100 40">
@@ -135,6 +138,8 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/layout/NavBar.vue'
 import ChatInput from '@/components/layout/ChatInput.vue'
+import { sendChatMessage } from '@/api/agent'
+import type { CareerOption, JobInfo } from '@/api/agent/types'
 
 const router = useRouter()
 
@@ -142,77 +147,43 @@ const router = useRouter()
 const userInput = ref('')
 const showCareerOptions = ref(false)
 const userMessage = ref('')
+const aiMessage = ref('')
 
-// 职业选项静态数据
-const careerOptions = ref([
-  {
-    id: 1,
-    title: '前端开发工程师',
-    description: '负责网站和应用程序的用户界面开发，与设计师和后端密切合作。',
-    icon: '💻',
-    tags: ['JavaScript', 'React', 'Vue', 'CSS'],
-    salary: '15-35K',
-    demand: '高需求',
-  },
-  {
-    id: 2,
-    title: '后端开发工程师',
-    description: '专注于服务器端逻辑、数据库设计和API开发，保障系统稳定运行。',
-    icon: '⚙️',
-    tags: ['Java', 'Python', 'MySQL', 'Spring'],
-    salary: '18-40K',
-    demand: '高需求',
-  },
-  {
-    id: 3,
-    title: '全栈开发工程师',
-    description: '同时掌握前后端技术，能够独立完成完整项目的开发工作。',
-    icon: '🔧',
-    tags: ['React', 'Node.js', 'MongoDB', 'Express'],
-    salary: '20-45K',
-    demand: '很抢手',
-  },
-  {
-    id: 4,
-    title: '移动端开发工程师',
-    description: '专注于iOS/Android原生应用开发，或使用跨平台框架开发多端应用。',
-    icon: '📱',
-    tags: ['Swift', 'Kotlin', 'Flutter', 'React Native'],
-    salary: '16-35K',
-    demand: '稳定需求',
-  },
-  {
-    id: 5,
-    title: '数据工程师',
-    description: '负责数据采集、处理、分析和可视化，为业务决策提供数据支持。',
-    icon: '📊',
-    tags: ['Python', 'SQL', 'Spark', 'Hadoop'],
-    salary: '18-40K',
-    demand: '快速增长',
-  },
-  {
-    id: 6,
-    title: 'AI/ML工程师',
-    description: '构建和部署机器学习模型，推动智能化应用和产品创新。',
-    icon: '🧠',
-    tags: ['Python', 'TensorFlow', 'PyTorch', '机器学习'],
-    salary: '25-50K',
-    demand: '新兴热门',
-  },
-])
+// 职业选项数据
+const careerOptions = ref<CareerOption[]>([])
 
-// 模拟发送消息
-const sendMessage = () => {
+// 发送消息
+const sendMessage = async () => {
   if (userInput.value.trim()) {
     userMessage.value = userInput.value
+    const major = userInput.value
     userInput.value = ''
+
+    try {
+      const res = await sendChatMessage({ major: major })
+      if (res.code === 200) {
+        // res.data 是 JSON 字符串，需要先解析
+        const responseData = JSON.parse(res.data as unknown as string)
+        const jobs: JobInfo[] = responseData.jobs
+        // 转换为前端展示用的careerOptions
+        careerOptions.value = jobs.map((job, index) => ({
+          id: index + 1,
+          title: job.job_name,
+          description: job.job_description,
+          major: job.major,
+          similarity: job.similarity / 100, // 后端返回的是百分比，转为0-1
+        }))
+        showCareerOptions.value = true
+      }
+    } catch (error) {
+      console.error('发送消息失败:', error)
+    }
   }
 }
 
 // 查看职业详情（静态函数）
 const viewCareerDetail = (careerId: number) => {
   console.log('查看职业详情:', careerId)
-  // 这里可以添加页面跳转或详情展示逻辑
 }
 
 // 选择职业（交互按钮）

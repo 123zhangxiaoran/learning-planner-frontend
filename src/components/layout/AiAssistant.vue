@@ -1,7 +1,17 @@
 <template>
-  <div class="ai-assistant" :class="{ open: isOpen }">
+  <div
+    class="ai-assistant"
+    :class="{ open: isOpen, dragging: isDragging }"
+    :style="{ left: position.x + 'px', top: position.y + 'px', right: 'auto', bottom: 'auto' }"
+  >
     <!-- 悬浮按钮 -->
-    <button class="assistant-toggle" @click="toggleOpen">
+    <button
+      class="assistant-toggle"
+      :class="{ dragging: isDragging }"
+      @mousedown.stop="startDrag"
+      @touchstart.stop.prevent="startDragTouch"
+      @click.stop="toggleOpen"
+    >
       <span v-if="!isOpen" class="toggle-icon">💬</span>
       <span v-else class="toggle-icon">✕</span>
     </button>
@@ -43,14 +53,125 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 
 const isOpen = ref(false)
 const inputMsg = ref('')
 const userMsg = ref('')
+const position = ref({ x: 0, y: 0 })
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0 })
+const hasMoved = ref(false) // 记录是否发生了拖动
+
+// 统一的拖动处理函数
+const handleDrag = (clientX: number, clientY: number) => {
+  if (!isDragging.value) return
+
+  hasMoved.value = true // 标记发生了拖动
+  const newX = clientX - dragStart.value.x
+  const newY = clientY - dragStart.value.y
+
+  // 限制在窗口范围内
+  const maxX = window.innerWidth - 56
+  const maxY = window.innerHeight - 56
+
+  position.value = {
+    x: Math.max(0, Math.min(newX, maxX)),
+    y: Math.max(0, Math.min(newY, maxY)),
+  }
+}
+
+// 初始化位置
+onMounted(() => {
+  // 计算初始位置（右下角）
+  position.value = {
+    x: window.innerWidth - 56 - 32, // 32 是 right: 2rem
+    y: window.innerHeight - 56 - 32, // 32 是 bottom: 2rem
+  }
+
+  // 绑定全局事件（支持鼠标和触摸）
+  window.addEventListener('mousemove', onDrag)
+  window.addEventListener('mouseup', stopDrag)
+  window.addEventListener('touchmove', onTouchDrag, { passive: false })
+  window.addEventListener('touchend', stopDragTouch)
+})
+
+// 清理事件
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onDrag)
+  window.removeEventListener('mouseup', stopDrag)
+  window.removeEventListener('touchmove', onTouchDrag)
+  window.removeEventListener('touchend', stopDragTouch)
+})
 
 const toggleOpen = () => {
+  // 如果刚刚发生了拖动，不执行打开/关闭
+  if (hasMoved.value) {
+    hasMoved.value = false
+    return
+  }
   isOpen.value = !isOpen.value
+}
+
+const startDrag = (e: MouseEvent) => {
+  if (!isOpen.value) {
+    isDragging.value = true
+    hasMoved.value = false // 重置移动标记
+    dragStart.value = {
+      x: e.clientX - position.value.x,
+      y: e.clientY - position.value.y,
+    }
+  }
+}
+
+const onDrag = (e: MouseEvent) => {
+  handleDrag(e.clientX, e.clientY)
+}
+
+// 触摸事件处理
+const startDragTouch = (e: TouchEvent) => {
+  if (!isOpen.value) {
+    e.preventDefault()
+    isDragging.value = true
+    hasMoved.value = false
+    const touch = e.touches[0]
+    if (touch) {
+      dragStart.value = {
+        x: touch.clientX - position.value.x,
+        y: touch.clientY - position.value.y,
+      }
+    }
+  }
+}
+
+const onTouchDrag = (e: TouchEvent) => {
+  if (isDragging.value) {
+    e.preventDefault()
+    const touch = e.touches[0]
+    if (touch) {
+      handleDrag(touch.clientX, touch.clientY)
+    }
+  }
+}
+
+const stopDragTouch = () => {
+  if (isDragging.value) {
+    isDragging.value = false
+    // 延迟一点重置 hasMoved，避免影响点击判断
+    setTimeout(() => {
+      hasMoved.value = false
+    }, 100)
+  }
+}
+
+const stopDrag = () => {
+  if (isDragging.value) {
+    isDragging.value = false
+    // 延迟一点重置 hasMoved，避免影响点击判断
+    setTimeout(() => {
+      hasMoved.value = false
+    }, 100)
+  }
 }
 
 const sendMessage = () => {
@@ -64,9 +185,18 @@ const sendMessage = () => {
 <style scoped>
 .ai-assistant {
   position: fixed;
-  bottom: 2rem;
   right: 2rem;
+  bottom: 2rem;
   z-index: 1000;
+}
+
+.ai-assistant.dragging {
+  cursor: grabbing !important;
+}
+
+.ai-assistant.dragging .assistant-toggle {
+  cursor: grabbing !important;
+  transform: none !important;
 }
 
 /* 悬浮按钮 */
@@ -76,12 +206,24 @@ const sendMessage = () => {
   border-radius: 50%;
   background: linear-gradient(145deg, var(--accent-orange), #e55a2b);
   border: none;
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
-  transition: all 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+.assistant-toggle:active {
+  cursor: grabbing;
+  transition: none;
 }
 
 .assistant-toggle:hover {
@@ -145,7 +287,7 @@ const sendMessage = () => {
 
 .status {
   font-size: 0.75rem;
-  color: #4CAF50;
+  color: #4caf50;
 }
 
 /* 聊天消息区域 */
@@ -164,8 +306,12 @@ const sendMessage = () => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .message.ai-message {
