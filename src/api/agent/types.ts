@@ -24,3 +24,27 @@ export interface SendMessageRequest {
 export interface CareerRecommendResponse {
   jobs: string
 }
+
+// RAG 搜索请求
+export interface RAGSearchRequest {
+  jobs: string[]
+}
+
+// 技能详情
+export interface SkillDetail {
+  name: string
+  description: string
+}
+
+// RAG 搜索返回的技能项
+export interface SkillItem {
+  job_name: string
+  skills: SkillDetail[]
+  major: string
+  score: number
+}
+
+// RAG 搜索响应（后端返回的是JSON字符串）
+export interface RAGSearchResponse {
+  skills: SkillItem[]
+}

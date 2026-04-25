@@ -4,42 +4,59 @@
       <input
         :value="modelValue"
         @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-        :placeholder="placeholder"
+        :placeholder="isLoading ? '点击右边可以取消查询' : placeholder"
         class="chat-input"
-        @keyup.enter="handleSend"
+        :disabled="isLoading"
+        @keyup.enter="isLoading ? undefined : handleSend()"
       />
+      <span v-if="isLoading" class="loading-hint"><b>➜</b></span>
       <button
         type="button"
         @click="handleSend"
         class="send-button"
-        :class="{ active: modelValue?.trim() }"
+        :class="{ active: modelValue?.trim() || isLoading, loading: isLoading }"
+        :disabled="!isLoading && !modelValue?.trim()"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- 发送图标 -->
+        <svg
+          v-if="!isLoading"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <path
             d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
         </svg>
+        <!-- 加载中正方形 -->
+        <div v-else class="loading-square"></div>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps<{
   modelValue?: string
   placeholder?: string
+  isLoading?: boolean
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'send', value: string): void
+  (e: 'cancel'): void
 }>()
 
 const handleSend = () => {
-  if (props.modelValue?.trim()) {
+  if (props.isLoading) {
+    // 正在加载时，点击取消请求
+    emit('cancel')
+  } else if (props.modelValue?.trim()) {
     emit('send', props.modelValue.trim())
     emit('update:modelValue', '')
   }
@@ -74,6 +91,31 @@ const handleSend = () => {
   outline: none;
 }
 
+.chat-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.loading-hint {
+  position: absolute;
+  right: 4rem;
+  color: var(--accent-orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.loading-hint b {
+  color: var(--accent-orange);
+  font-weight: 700;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .chat-input::placeholder {
   color: var(--text-secondary);
 }
@@ -106,5 +148,25 @@ const handleSend = () => {
 .send-button svg {
   width: 20px;
   height: 20px;
+}
+
+.loading-square {
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border-radius: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
 }
 </style>

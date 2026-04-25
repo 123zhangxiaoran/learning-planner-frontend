@@ -1,43 +1,41 @@
 import request, { type ApiResponse } from '@/utils/request'
+import { usePlayerStore } from '@/stores/user'
 import type {
-  CareerOption,
   SendMessageRequest,
   CareerRecommendResponse,
+  RAGSearchRequest,
+  RAGSearchResponse,
 } from './types'
 
-
-// 发送聊天消息，获取职业推荐
+// ?????????????
 export function sendChatMessage(
   data: SendMessageRequest,
+  signal?: AbortSignal,
 ): Promise<ApiResponse<CareerRecommendResponse>> {
   return request<CareerRecommendResponse>({
-    url: '/agent/jobs',
+    url: '/agent/searchJobs',
     method: 'post',
     data,
+    signal,
   })
 }
 
-// 获取职业详情
-export function getCareerDetail(careerId: number): Promise<ApiResponse<CareerOption>> {
-  return request<CareerOption>({
-    url: `/agent/career/${careerId}`,
-    method: 'get',
-  })
-}
-
-// 选择职业
-export function selectCareer(careerId: number): Promise<ApiResponse<void>> {
-  return request<void>({
-    url: '/agent/career/select',
+// ??????? RAG ??
+export function saveJobAndSearchRAG(jobNames: string[]): Promise<ApiResponse<RAGSearchResponse>> {
+  return request<RAGSearchResponse>({
+    url: '/agent/searchSkills',
     method: 'post',
-    data: { careerId },
+    data: { jobs: jobNames } as RAGSearchRequest,
   })
 }
 
-// 获取用户已选择的职业
-export function getSelectedCareer(): Promise<ApiResponse<CareerOption>> {
-  return request<CareerOption>({
-    url: '/agent/career/selected',
-    method: 'get',
+// ?????????????
+export function saveSelectedJobs(jobNames: string[]): Promise<ApiResponse<void>> {
+  const playerStore = usePlayerStore()
+  const userId = playerStore.playerInfo?.id
+  return request<void>({
+    url: '/agent/savejob',
+    method: 'post',
+    data: { jobs: jobNames, userId },
   })
 }

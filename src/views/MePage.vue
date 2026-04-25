@@ -176,6 +176,7 @@ import { usePlayerStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { logout } from '@/api/user'
+import { useCareerStore } from '@/stores/career'
 
 const playerStore = usePlayerStore()
 const router = useRouter()
@@ -195,6 +196,9 @@ function handleLogout() {
       playerStore.setAccessToken('')
       // 清除 cookie 中的 refreshToken
       document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+      // 清除职业存储
+      const careerStore = useCareerStore()
+      careerStore.clearJobNames()
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })

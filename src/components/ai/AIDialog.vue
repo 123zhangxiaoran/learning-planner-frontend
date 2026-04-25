@@ -3,22 +3,26 @@
   <div class="ai-dialog-section">
     <!-- 标题区域 -->
     <div class="section-header">
-      <div class="header-badge">{{ titleBadge }}</div>
-      <h1 class="section-title">{{ title }}</h1>
-      <p class="section-subtitle">
-        {{ subtitle }}<br />
-        <span class="highlight">{{ highlightText }}</span>
-      </p>
+      <div class="header-left">
+        <div class="header-badge">{{ titleBadge }}</div>
+        <h1 class="section-title">{{ title }}</h1>
+        <p class="section-subtitle">
+          {{ subtitle }} <br />
+          <span class="highlight">{{ highlightText }}</span>
+        </p>
+      </div>
+      <div class="header-right">
+        <slot name="header-right"></slot>
+      </div>
     </div>
 
     <!-- 对话气泡区域 -->
     <div class="chat-container">
       <!-- AI消息 -->
       <div class="message ai-message">
-        <div class="message-avatar">🤖</div>
         <div class="message-bubble">
           <p>{{ aiMessage }}</p>
-          <ul v-if="suggestions" class="suggestions">
+          <ul v-if="suggestions && suggestions.length > 0" class="suggestions">
             <li v-for="suggestion in suggestions" :key="suggestion">{{ suggestion }}</li>
           </ul>
         </div>
@@ -82,7 +86,7 @@ withDefaults(defineProps<Props>(), {
   title: '你想了解什么？',
   subtitle: '告诉我你的需求，我会为你提供建议',
   highlightText: '选择一个方向开始对话。',
-  aiMessage: '你好！我可以为你提供帮助。',
+  aiMessage: '',
   suggestions: () => [],
   showUserMessage: false,
   userMessage: '',
@@ -118,8 +122,22 @@ const onSendMessage = () => {
 
 /* ========= 头部区域 ========= */
 .section-header {
-  margin-bottom: 3rem;
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.header-left {
+  flex: 1;
   max-width: 600px;
+}
+
+.header-right {
+  flex-shrink: 0;
+  padding-top: 6.5rem;
+  padding-right: 8rem;
 }
 
 .header-badge {
@@ -201,49 +219,12 @@ const onSendMessage = () => {
   border: 1px solid var(--border-color);
   border-radius: 18px;
   padding: 1rem 1.5rem;
-  position: relative;
-}
-
-.message.ai-message .message-bubble::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 8px 8px 0;
-  border-color: transparent var(--border-color) transparent transparent;
-}
-
-.message.ai-message .message-bubble::after {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 8px 8px 0;
-  border-color: transparent var(--bg-dark) transparent transparent;
 }
 
 .message.user-message .message-bubble {
   background: var(--accent-orange);
   color: var(--bg-dark);
   border-color: var(--accent-orange);
-}
-
-.message.user-message .message-bubble::before {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 12px;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 8px 0 8px 8px;
-  border-color: transparent transparent transparent var(--accent-orange);
 }
 
 /* 建议列表 */

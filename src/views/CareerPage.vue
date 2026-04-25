@@ -55,62 +55,65 @@
             </div>
           </div>
 
-          <!-- AI回复消息 -->
-          <div v-if="aiMessage" class="message ai-message">
+          <!-- AI正在搜索提示 -->
+          <div v-if="isSearching" class="message ai-message">
+            <div class="message-bubble">
+              <p>职业小顾问在努力搜索中....</p>
+            </div>
+          </div>
+
+          <!-- AI回复消息（当没有找到岗位时显示） -->
+          <div v-if="aiMessage && !showCareerOptions && !isSearching" class="message ai-message">
             <div class="message-bubble">
               <p>{{ aiMessage }}</p>
             </div>
           </div>
 
-          <!-- 静态数据展示区域 -->
-          <div v-if="showCareerOptions" class="career-options">
-            <div class="options-header">
-              <div class="options-badge">为你推荐</div>
-              <h3>{{ careerOptions[0]?.major || '技术开发' }}相关职业</h3>
-            </div>
-
-            <div class="career-grid">
-              <div
-                v-for="career in careerOptions"
-                :key="career.id"
-                class="career-card"
-                @click="viewCareerDetail(career.id)"
-              >
-                <h4 class="card-title">{{ career.title }}</h4>
-                <p class="card-description">{{ career.description }}</p>
-                <div class="card-stats">
-                  <span class="stat">专业: {{ career.major }}</span>
-                  <span class="stat">匹配度: {{ Math.round(career.similarity * 100) }}%</span>
-                </div>
-                <div class="card-sketch">
-                  <svg viewBox="0 0 100 40">
-                    <path
-                      d="M10,20 Q30,10 50,20 T90,20"
-                      stroke="#2ec4b6"
-                      stroke-width="1.5"
-                      fill="none"
-                      stroke-dasharray="3,2"
-                    />
-                  </svg>
-                </div>
-                <div class="card-action">
-                  <button
-                    class="action-btn"
-                    :class="{ active: selectedCareer === career.id }"
-                    @click.stop="selectCareer(career.id)"
-                  >
-                    {{ selectedCareer === career.id ? '✓ 确定选择' : '选这个' }}
-                  </button>
+          <!-- AI回复消息（气泡形式展示推荐结果）-->
+          <div v-if="showCareerOptions" class="message ai-message career-message">
+            <div class="message-bubble career-bubble">
+              <p class="career-reply-title">为你推荐以下职业：</p>
+              <div class="career-list">
+                <div
+                  v-for="career in careerOptions"
+                  :key="career.id"
+                  class="career-item"
+                  :class="{ selected: selectedCareers.includes(career.id) }"
+                  @click="selectCareer(career.id)"
+                >
+                  <div class="career-item-header">
+                    <span class="career-item-title">{{ career.title }}</span>
+                    <span class="career-item-match"
+                      >{{ Math.round(career.similarity * 100) }}%</span
+                    >
+                  </div>
+                  <p class="career-item-desc">{{ career.description }}</p>
+                  <div class="career-item-stats">
+                    <span class="stat">专业: {{ career.major }}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <!-- 下一步按钮 -->
-            <div class="next-step-container" v-if="showCareerOptions">
-              <button class="next-step-btn" @click="goToSkillPage">
-                <span class="next-step-text">开始分析技能路径</span>
-                <span class="next-step-arrow">→</span>
-              </button>
+              <!-- 下一步按钮 -->
+              <div class="next-step-container" v-if="showCareerOptions">
+                <div class="selection-info">
+                  <span class="selection-count">已选择: {{ selectedCareers.length }}/3</span>
+                  <span class="selection-hint" v-if="selectedCareers.length === 0"
+                    >请至少选择1个职业</span
+                  >
+                  <span class="selection-hint warning" v-else-if="selectedCareers.length > 3"
+                    >最多只能选择3个职业</span
+                  >
+                </div>
+                <button
+                  class="next-step-btn"
+                  :class="{ disabled: selectedCareers.length === 0 || selectedCareers.length > 3 }"
+                  @click="goToSkillPage"
+                  :disabled="selectedCareers.length === 0 || selectedCareers.length > 3"
+                >
+                  <span class="next-step-text">开始分析技能路径</span>
+                  <span class="next-step-arrow">→</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -119,17 +122,12 @@
         <ChatInput
           v-model="userInput"
           placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
+          :is-loading="isSearching"
           @send="sendMessage"
+          @cancel="cancelRequest"
         />
       </section>
     </main>
-
-    <!-- 浮动装饰元素 -->
-    <div class="floating-decoration">
-      <div class="decoration-item">💼</div>
-      <div class="decoration-item">📊</div>
-      <div class="decoration-item">🚀</div>
-    </div>
   </div>
 </template>
 
@@ -139,15 +137,22 @@ import { useRouter } from 'vue-router'
 import NavBar from '@/components/layout/NavBar.vue'
 import ChatInput from '@/components/layout/ChatInput.vue'
 import { sendChatMessage } from '@/api/agent'
+import { saveSelectedJobs } from '@/api/agent'
 import type { CareerOption, JobInfo } from '@/api/agent/types'
+import { useCareerStore } from '@/stores/career'
 
 const router = useRouter()
+const careerStore = useCareerStore()
 
 // 静态数据
 const userInput = ref('')
 const showCareerOptions = ref(false)
 const userMessage = ref('')
 const aiMessage = ref('')
+const isSearching = ref(false)
+
+// AbortController 用于取消请求
+let abortController: AbortController | null = null
 
 // 职业选项数据
 const careerOptions = ref<CareerOption[]>([])
@@ -155,16 +160,38 @@ const careerOptions = ref<CareerOption[]>([])
 // 发送消息
 const sendMessage = async () => {
   if (userInput.value.trim()) {
+    // 清空之前的数据
     userMessage.value = userInput.value
+    careerOptions.value = []
+    selectedCareers.value = []
+    showCareerOptions.value = false
+    aiMessage.value = ''
+    isSearching.value = true
+
     const major = userInput.value
     userInput.value = ''
 
+    // 创建新的 AbortController
+    abortController = new AbortController()
+
     try {
-      const res = await sendChatMessage({ major: major })
+      // 延迟 3 秒后再发送请求，确保后端有足够时间处理
+      await new Promise(resolve => setTimeout(resolve, 3000))
+
+      const res = await sendChatMessage({ major: major }, abortController.signal)
       if (res.code === 200) {
         // res.data 是 JSON 字符串，需要先解析
         const responseData = JSON.parse(res.data as unknown as string)
         const jobs: JobInfo[] = responseData.jobs
+
+        // 检查是否找到合适的岗位
+        if (!jobs || jobs.length === 0) {
+          aiMessage.value = '职业小顾问没有找到合适的岗位，抱歉~'
+          careerOptions.value = []
+          showCareerOptions.value = false
+          return
+        }
+
         // 转换为前端展示用的careerOptions
         careerOptions.value = jobs.map((job, index) => ({
           id: index + 1,
@@ -174,27 +201,75 @@ const sendMessage = async () => {
           similarity: job.similarity / 100, // 后端返回的是百分比，转为0-1
         }))
         showCareerOptions.value = true
+        // 设置AI回复消息
+        aiMessage.value = `为你找到 ${jobs.length} 个相关职业，请点击选择感兴趣的岗位：`
       }
-    } catch (error) {
-      console.error('发送消息失败:', error)
+    } catch (error: unknown) {
+      // 判断是否是用户主动取消
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('请求已取消')
+        userMessage.value = ''
+      } else {
+        console.error('发送消息失败:', error)
+      }
+    } finally {
+      isSearching.value = false
+      abortController = null
     }
   }
 }
 
-// 查看职业详情（静态函数）
-const viewCareerDetail = (careerId: number) => {
-  console.log('查看职业详情:', careerId)
+// 取消请求
+const cancelRequest = () => {
+  if (isSearching.value && abortController) {
+    abortController.abort()
+    abortController = null
+    isSearching.value = false
+    userMessage.value = ''
+  }
 }
 
-// 选择职业（交互按钮）
-const selectedCareer = ref<number | null>(null)
+// 选择职业（交互按钮，支持多选，最少1个最多3个）
+const selectedCareers = ref<number[]>([])
 const selectCareer = (careerId: number) => {
-  selectedCareer.value = selectedCareer.value === careerId ? null : careerId
+  const index = selectedCareers.value.indexOf(careerId)
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedCareers.value.splice(index, 1)
+  } else {
+    // 未选中，添加选择（限制最多3个）
+    if (selectedCareers.value.length < 3) {
+      selectedCareers.value.push(careerId)
+    }
+  }
 }
 
 // 跳转到技能页面
-const goToSkillPage = () => {
-  router.push('/user/skill')
+const goToSkillPage = async () => {
+  if (selectedCareers.value.length === 0) {
+    alert('请至少选择1个职业')
+    return
+  }
+  if (selectedCareers.value.length > 3) {
+    alert('最多只能选择3个职业')
+    return
+  }
+  // 获取选中的职业名称并保存到 store（7天过期）
+  const selectedJobNames = careerOptions.value
+    .filter((c) => selectedCareers.value.includes(c.id))
+    .map((c) => c.title)
+  careerStore.setJobNames(selectedJobNames)
+
+  // 后台静默存储到数据库（不阻塞跳转）
+  saveSelectedJobs(selectedJobNames).catch((err: unknown) => {
+    console.error('保存岗位失败:', err)
+  })
+
+  // 跳转到技能页面，传递岗位名称
+  router.push({
+    path: '/user/skill',
+    query: { jobNames: selectedJobNames.join(',') },
+  })
 }
 </script>
 
@@ -379,6 +454,89 @@ const goToSkillPage = () => {
   font-size: 0.9rem;
 }
 
+/* ========= 气泡内的职业列表 ========= */
+.career-message {
+  margin-top: 3rem;
+}
+
+.career-bubble {
+  max-width: 95% !important;
+  width: 95%;
+  padding: 1.5rem !important;
+}
+
+.career-reply-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.career-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.career-item {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.career-item:hover {
+  border-color: var(--accent-teal);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(46, 196, 182, 0.15);
+}
+
+.career-item.selected {
+  border-color: var(--accent-orange);
+  background: rgba(255, 107, 53, 0.05);
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.15);
+}
+
+.career-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.career-item-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.career-item-match {
+  background: rgba(255, 107, 53, 0.1);
+  color: var(--accent-orange);
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.career-item-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.career-item-stats .stat {
+  background: rgba(46, 196, 182, 0.1);
+  color: var(--accent-teal);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 /* ========= 职业选项区域 ========= */
 .career-options {
   margin-top: 2rem;
@@ -425,6 +583,11 @@ const goToSkillPage = () => {
   cursor: pointer;
   transition: all 0.3s;
   transform: rotate(var(--rotation, 0deg));
+}
+
+.career-card.selected {
+  border-color: var(--accent-orange);
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.2);
 }
 
 .career-card:hover {
@@ -540,11 +703,35 @@ const goToSkillPage = () => {
 /* ========= 下一步按钮 ========= */
 .next-step-container {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin-top: 3rem;
   padding-top: 2rem;
   border-top: 1px dashed var(--border-color);
   animation: fadeInUp 0.6s ease;
+}
+
+.selection-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selection-count {
+  font-size: 1rem;
+  color: var(--accent-teal);
+  font-weight: 600;
+}
+
+.selection-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.selection-hint.warning {
+  color: #ff4444;
 }
 
 .next-step-btn {
@@ -563,7 +750,15 @@ const goToSkillPage = () => {
   box-shadow: 0 8px 25px rgba(255, 107, 53, 0.3);
 }
 
-.next-step-btn:hover {
+.next-step-btn.disabled {
+  background: var(--border-color);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none !important;
+}
+
+.next-step-btn:hover:not(.disabled) {
   transform: translateY(-3px);
   box-shadow: 0 12px 35px rgba(255, 107, 53, 0.5);
   background: linear-gradient(145deg, #ff7b4f, #ff6b35);

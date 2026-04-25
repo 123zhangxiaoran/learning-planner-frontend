@@ -146,6 +146,10 @@ async function refreshAccessToken(isLogout: boolean = false): Promise<boolean> {
       // 如果是401，说明长token也过期了，需要重新登录
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         playerStore.setAccessToken('')
+        playerStore.setPlayerInfo(null)
+        // 清除职业存储
+        const { useCareerStore } = await import('@/stores/career')
+        useCareerStore().clearJobNames()
         router.replace({ name: 'user-login' })
       }
       return false
@@ -251,6 +255,7 @@ export default <T>(config: {
   data?: unknown
   params?: unknown
   headers?: Record<string, string>
+  signal?: AbortSignal
 }): Promise<ApiResponse<T>> => {
   return request(config)
 }
