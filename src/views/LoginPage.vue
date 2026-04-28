@@ -207,19 +207,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { accountLogin, phoneLogin, sendCode, sendUser } from '@/api/user'
 import { ResponseCode } from '@/constants/responseCode.ts'
 import router from '@/router'
 import { usePlayerStore } from '@/stores/user'
 
-// 检查登录状态
+// 绘制风景画布
 onMounted(() => {
-  const playerStore = usePlayerStore()
-  if (playerStore.accessToken) {
-    router.replace({ name: 'home' })
-  }
-  // 绘制风景画布
   drawScene()
   window.addEventListener('resize', drawScene)
 })
@@ -618,7 +613,8 @@ async function handlePwdLogin(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    router.push('/')
+    await nextTick()
+    router.replace('/')
   } catch (err) {
     console.log('登录失败', err)
     alert('登录失败: ' + err)
@@ -678,7 +674,8 @@ async function handleSmsLogin(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    router.push('/')
+    await nextTick()
+    router.replace('/')
   } catch (err) {
     console.log(err)
   } finally {
@@ -772,7 +769,8 @@ async function handleRegister(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    router.push('/')
+    await nextTick()
+    router.replace('/')
     registerForm.value = { mobile: '', password: '', confirmPwd: '', code: '' }
   } catch (err) {
     console.log(err)

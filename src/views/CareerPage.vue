@@ -440,6 +440,7 @@ const goToSkillPage = async () => {
   color: var(--bg-dark);
   border: none;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+  user-select: text;
 }
 
 /* 建议列表 */

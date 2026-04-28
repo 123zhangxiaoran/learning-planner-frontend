@@ -22,6 +22,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8820',
         changeOrigin: true,
+        cookieDomainRewrite: '',
       },
     },
   },

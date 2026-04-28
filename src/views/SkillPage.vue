@@ -32,7 +32,9 @@
             subtitle="告诉我你想掌握的技能，我来为你规划学习路径"
             highlightText="选择技能开始你的提升计划。"
             placeholder="想学什么技能？小顾问来帮你鉴赏一番~"
+            :isLoading="isSendingMessage"
             @sendMessage="handleSendMessage"
+            @cancel="cancelSendMessage"
           >
             <!-- 标题右侧插槽：返回按钮 -->
             <template #header-right>
@@ -58,10 +60,19 @@
               </div>
             </div>
 
-            <!-- 用户输入的信息 -->
-            <div v-for="(msg, idx) in userMessages" :key="idx" class="message user-message">
-              <div class="message-bubble">
-                <p>{{ msg }}</p>
+            <!-- 对话记录 -->
+            <div v-for="(record, idx) in chatRecords" :key="idx" class="chat-record">
+              <!-- 用户消息 -->
+              <div class="message user-message">
+                <div class="message-bubble">
+                  <p>{{ record.userMessage }}</p>
+                </div>
+              </div>
+              <!-- AI 回复 -->
+              <div v-if="record.aiReply" class="message ai-message">
+                <div class="message-bubble">
+                  <p>{{ record.aiReply }}</p>
+                </div>
               </div>
             </div>
 
@@ -142,7 +153,7 @@
 
           <!-- 空状态 -->
           <div v-else class="right-empty-state">
-            <div class="empty-icon">�</div>
+            <div class="empty-icon">📚</div>
             <p>暂无技能数据</p>
           </div>
 
@@ -164,11 +175,13 @@ import AIDialog from '@/components/ai/AIDialog.vue'
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
-import { saveJobAndSearchRAG } from '@/api/agent'
+import { usePlayerStore } from '@/stores/user'
+import { saveJobAndSearchRAG, submitUserMessage, getUserJobData } from '@/api/agent'
 import type { SkillItem } from '@/api/agent/types'
 
 const route = useRoute()
 const careerStore = useCareerStore()
+const playerStore = usePlayerStore()
 
 const selectedSkills = ref<string[]>([])
 const skillsData = ref<SkillItem[]>([])
@@ -181,14 +194,21 @@ const initCollapsedJobs = () => {
   collapsedJobs.value = skillOptions.value.map((job) => job.id)
 }
 
-// 将后端返回的技能数据转换为展示格式
+// 将后端返回的技能数据转换为展示格式，按点击顺序排序
 const skillOptions = computed(() => {
-  return skillsData.value.map((skill, index) => ({
+  // 按照 selectedJobNames 的顺序对技能数据进行排序
+  const orderedSkills = selectedJobNames.value
+    .map((jobName) => {
+      return skillsData.value.find((skill) => skill.job_name === jobName)
+    })
+    .filter(Boolean)
+
+  return orderedSkills.map((skill, index) => ({
     id: index + 1,
-    name: skill.job_name,
-    skillList: skill.skills,
-    major: skill.major,
-    score: skill.score,
+    name: skill!.job_name,
+    skillList: skill!.skills,
+    major: skill!.major,
+    score: skill!.score,
   }))
 })
 
@@ -200,6 +220,33 @@ const toggleSkill = (skillItem: string) => {
   } else {
     selectedSkills.value.push(skillItem)
   }
+}
+
+// 展开岗位并定位到指定技能
+const expandAndScrollToSkill = (skillName: string) => {
+  nextTick(() => {
+    // 找到技能所在的岗位
+    const jobWithSkill = skillOptions.value.find((job) =>
+      job.skillList.some((skill) => skill.name === skillName),
+    )
+    if (!jobWithSkill) return
+
+    // 如果岗位是折叠的，先展开
+    if (collapsedJobs.value.includes(jobWithSkill.id)) {
+      toggleJobCollapse(jobWithSkill.id)
+    }
+
+    // 等待展开动画完成后滚动到技能位置
+    setTimeout(() => {
+      const skillElements = document.querySelectorAll('.card-skill-item') as NodeListOf<HTMLElement>
+      skillElements.forEach((el) => {
+        const nameEl = el.querySelector('.skill-name')
+        if (nameEl && nameEl.textContent === skillName) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    }, 100)
+  })
 }
 
 // 切换岗位折叠状态
@@ -221,33 +268,75 @@ onMounted(async () => {
   const jobNamesParam = route.query.jobNames as string
   const storeJobNames = careerStore.selectedJobNames
 
-  // 没有数据就不调用接口
-  if (!jobNamesParam && (!storeJobNames || storeJobNames.length === 0)) {
-    return
-  }
-
   // 优先使用 query 参数，否则使用 store 中的数据
-  const jobNames = jobNamesParam ? jobNamesParam.split(',') : storeJobNames
-  selectedJobNames.value = jobNames
+  let jobNames = jobNamesParam ? jobNamesParam.split(',') : storeJobNames
 
-  isLoading.value = true
-  try {
-    const res = await saveJobAndSearchRAG(jobNames)
-    if (res.code === 200) {
-      // res.data 是 JSON 字符串，需要先解析
-      const responseData = JSON.parse(res.data as unknown as string)
-      skillsData.value = responseData.skills || []
-      // 数据加载完成后，初始化所有岗位为折叠状态
-      initCollapsedJobs()
+  // 如果没有数据，发送阻塞请求获取用户数据
+  if (
+    (!jobNamesParam && (!storeJobNames || storeJobNames.length === 0)) ||
+    (storeJobNames && storeJobNames.length === 0)
+  ) {
+    const userId = playerStore.playerInfo?.id
+    if (userId) {
+      isLoading.value = true
+      try {
+        const res = await getUserJobData(userId)
+        if (res.code === 200 && res.data) {
+          // data 是 JSON 字符串，需要先解析
+          const responseData = JSON.parse(res.data as unknown as string)
+          // 后端返回 jobNames 和 skills
+          jobNames = responseData.query || []
+          selectedJobNames.value = jobNames
+
+          // 保存岗位名称到 store
+          if (jobNames.length > 0) {
+            careerStore.setJobNames(jobNames)
+          }
+
+          // 直接使用后端返回的技能数据
+          skillsData.value = responseData.skills || []
+          initCollapsedJobs()
+        }
+      } catch (error) {
+        console.error('获取用户数据失败:', error)
+      } finally {
+        isLoading.value = false
+      }
     }
-  } catch (error) {
-    console.error('RAG 检索失败:', error)
-  } finally {
-    isLoading.value = false
+
+    // 仍然没有数据则返回
+    if (!jobNames || jobNames.length === 0) {
+      return
+    }
+  } else {
+    // 有数据时直接请求技能列表
+    selectedJobNames.value = jobNames
+    isLoading.value = true
+    try {
+      const res = await saveJobAndSearchRAG(jobNames)
+      if (res.code === 200) {
+        const responseData = JSON.parse(res.data as unknown as string)
+        skillsData.value = responseData.skills || []
+        initCollapsedJobs()
+      }
+    } catch (error) {
+      console.error('RAG 检索失败:', error)
+    } finally {
+      isLoading.value = false
+    }
   }
 })
-const showUserMessage = ref(false)
-const userMessages = ref<string[]>([])
+
+// 对话记录，每个记录包含用户消息和AI回复
+interface ChatRecord {
+  userMessage: string
+  aiReply?: string
+}
+const chatRecords = ref<ChatRecord[]>([])
+const isSendingMessage = ref(false)
+
+// AbortController 用于取消请求
+let abortController: AbortController | null = null
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -259,17 +348,87 @@ const scrollToBottom = () => {
   })
 }
 
-const handleSendMessage = (message: string) => {
-  userMessages.value.push(message)
-  showUserMessage.value = true
+const handleSendMessage = async (message: string) => {
+  // 添加新的对话记录
+  chatRecords.value.push({ userMessage: message })
+  isSendingMessage.value = true
 
   // 滚动到底部
   scrollToBottom()
 
-  // 模拟AI回复逻辑
-  setTimeout(() => {
-    // 可以根据message内容做更智能的回复
-  }, 500)
+  // 创建新的 AbortController
+  abortController = new AbortController()
+
+  // 获取岗位名称：优先使用 URL 参数，否则使用 store 中的数据
+  const jobNamesParam = route.query.jobNames as string
+  const storeJobNames = careerStore.selectedJobNames
+  const jobNames = jobNamesParam ? jobNamesParam.split(',') : storeJobNames
+
+  // 调用接口提交用户消息，并添加3秒延迟给后端处理时间
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    const res = await submitUserMessage({ text: message, job_names: jobNames })
+    if (res.code === 200 && res.data) {
+      // res.data 是 JSON 字符串，需要先解析
+      const responseData = JSON.parse(res.data as unknown as string)
+      const skillName = responseData.best_match_skill
+      if (skillName) {
+        // 更新最后一条对话记录的 AI 回复
+        const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+        if (lastRecord) {
+          // 随机选择一句回复
+          const replies = [
+            `你想要学的是${skillName}吧，我帮你选中啦！`,
+            `${skillName}真的很适合你，我帮你拿下它！`,
+            `经过我的思考，${skillName}很符合你的期望，我帮你选中它。`,
+            `我觉得${skillName}特别适合你，已经帮你选好了！`,
+            `选${skillName}准没错，我帮你点上啦！`,
+          ]
+          lastRecord.aiReply = replies[Math.floor(Math.random() * replies.length)]
+          scrollToBottom()
+          // 自动选中技能，并展开定位
+          if (!selectedSkills.value.includes(skillName)) {
+            selectedSkills.value.push(skillName)
+            expandAndScrollToSkill(skillName)
+          }
+        }
+      } else {
+        // 没有匹配到技能，给出友好提示
+        const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+        if (lastRecord) {
+          const noMatchReplies = [
+            `嗯...你说的这个好像和你选的岗位不太搭哦，看看右侧有没有心仪的？`,
+            `你这个问题和选的岗位没太对上，看看右侧技能列表挑一个？`,
+            `你选的岗位里没有很匹配这个的，不妨看看右侧自己选一个？`,
+            `这个问题和你的岗位方向不太一致，看看右边有没有感兴趣的技能？`,
+          ]
+          lastRecord.aiReply = noMatchReplies[Math.floor(Math.random() * noMatchReplies.length)]
+          scrollToBottom()
+        }
+      }
+    }
+  } catch (error: unknown) {
+    // 判断是否是用户主动取消
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('请求已取消')
+      // 移除最后一条对话记录
+      chatRecords.value.pop()
+    } else {
+      console.error('消息提交失败:', error)
+    }
+  } finally {
+    isSendingMessage.value = false
+    abortController = null
+  }
+}
+
+// 取消发送
+const cancelSendMessage = () => {
+  if (isSendingMessage.value && abortController) {
+    abortController.abort()
+    abortController = null
+    isSendingMessage.value = false
+  }
 }
 </script>
 
@@ -703,6 +862,7 @@ const handleSendMessage = (message: string) => {
   color: var(--bg-dark);
   border: none;
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+  user-select: text;
 }
 
 /* ========= 岗位大卡片布局 ========= */

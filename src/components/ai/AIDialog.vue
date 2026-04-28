@@ -46,18 +46,34 @@
         <input
           v-model="inputValue"
           type="text"
-          :placeholder="placeholder"
+          :placeholder="isLoading ? '点击右边可以取消查询' : placeholder"
           class="chat-input"
-          @keyup.enter="onSendMessage"
+          :disabled="isLoading"
+          @keyup.enter="isLoading ? undefined : onSendMessage()"
         />
-        <button @click="onSendMessage" class="send-button" :class="{ active: inputValue.trim() }">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <span v-if="isLoading" class="loading-hint"><b>➜</b></span>
+        <button
+          @click="handleButtonClick"
+          class="send-button"
+          :class="{ active: inputValue.trim() || isLoading, loading: isLoading }"
+          :disabled="!isLoading && !inputValue.trim()"
+        >
+          <!-- 发送图标 -->
+          <svg
+            v-if="!isLoading"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path
               d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
           </svg>
+          <!-- 加载中正方形 -->
+          <div v-else class="loading-square"></div>
         </button>
       </div>
     </div>
@@ -78,10 +94,11 @@ interface Props {
   showUserMessage?: boolean
   userMessage?: string
   placeholder?: string
+  isLoading?: boolean
 }
 
 // 默认Props值
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   titleBadge: 'AI 助手',
   title: '你想了解什么？',
   subtitle: '告诉我你的需求，我会为你提供建议',
@@ -91,10 +108,12 @@ withDefaults(defineProps<Props>(), {
   showUserMessage: false,
   userMessage: '',
   placeholder: '请输入你的问题...',
+  isLoading: false,
 })
 
 const emit = defineEmits<{
   sendMessage: [message: string]
+  cancel: []
 }>()
 
 const inputValue = ref('')
@@ -103,6 +122,15 @@ const onSendMessage = () => {
   if (inputValue.value.trim()) {
     emit('sendMessage', inputValue.value.trim())
     inputValue.value = ''
+  }
+}
+
+const handleButtonClick = () => {
+  if (props.isLoading) {
+    // 正在加载时，点击取消请求
+    emit('cancel')
+  } else {
+    onSendMessage()
   }
 }
 </script>
@@ -225,6 +253,7 @@ const onSendMessage = () => {
   background: var(--accent-orange);
   color: var(--bg-dark);
   border-color: var(--accent-orange);
+  user-select: text;
 }
 
 /* 建议列表 */
@@ -271,6 +300,35 @@ const onSendMessage = () => {
   color: var(--text-secondary);
 }
 
+.chat-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.loading-hint {
+  position: absolute;
+  right: 4rem;
+  color: var(--accent-orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.loading-hint b {
+  color: var(--accent-orange);
+  font-weight: 700;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .send-button {
   width: 48px;
   height: 48px;
@@ -291,6 +349,10 @@ const onSendMessage = () => {
   transform: rotate(0deg);
 }
 
+.send-button.loading {
+  border-radius: 8px;
+}
+
 .send-button.active:hover {
   transform: scale(1.05);
   box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
@@ -299,6 +361,26 @@ const onSendMessage = () => {
 .send-button svg {
   width: 20px;
   height: 20px;
+}
+
+.loading-square {
+  width: 16px;
+  height: 16px;
+  background: #000000;
+  border-radius: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
 }
 
 /* ========= 动画 ========= */

@@ -48,3 +48,20 @@ export interface SkillItem {
 export interface RAGSearchResponse {
   skills: SkillItem[]
 }
+
+// 提交用户消息请求
+export interface SubmitUserMessageRequest {
+  text: string
+  job_names?: string[]
+}
+
+// 提交用户消息响应（后端返回的是JSON字符串）
+export interface SubmitUserMessageResponse {
+  best_match_skill: string
+}
+
+// 获取用户岗位数据响应
+export interface GetUserJobDataResponse {
+  query: string[]
+  skills: SkillItem[]
+}

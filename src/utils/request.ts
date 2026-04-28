@@ -111,7 +111,7 @@ async function refreshAccessToken(isLogout: boolean = false): Promise<boolean> {
 
   isRefreshing = true
 
-  refreshPromise = (async () => {
+    refreshPromise = (async () => {
     const playerStore = usePlayerStore()
     const currentToken = playerStore.accessToken
     const userId = playerStore.playerInfo?.id
@@ -184,7 +184,25 @@ request.interceptors.request.use(
       const isLogout = config.url?.includes('/user/logout')
       const success = await refreshAccessToken(isLogout)
       if (!success) {
+        // 如果是退出操作，刷新失败时直接清除token并跳转
+        if (isLogout) {
+          playerStore.setAccessToken('')
+          playerStore.setPlayerInfo(null)
+          const { useCareerStore } = await import('@/stores/career')
+          useCareerStore().clearJobNames()
+          router.replace({ name: 'user-login' })
+          return config
+        }
         return Promise.reject(new Error('Token已过期，请重新登录'))
+      }
+      // 刷新成功，如果是退出操作，直接清除数据跳转（后端退出接口不返回新token）
+      if (isLogout) {
+        playerStore.setAccessToken('')
+        playerStore.setPlayerInfo(null)
+        const { useCareerStore } = await import('@/stores/career')
+        useCareerStore().clearJobNames()
+        router.replace({ name: 'user-login' })
+        return config
       }
       // 刷新成功，使用新token
       const newToken = playerStore.accessToken
