@@ -1162,40 +1162,324 @@ const cancelSendMessage = () => {
 @media (max-width: 1024px) {
   .split-layout {
     flex-direction: column;
+    gap: 1rem;
   }
 
   .right-panel {
     width: 100%;
-    max-height: 400px;
+    max-height: 500px;
   }
 
   .left-panel :deep(.chat-container) {
-    max-height: 400px;
+    max-height: 500px;
   }
 }
 
 @media (max-width: 768px) {
+  .skill-container {
+    min-height: 100vh;
+  }
+
   .main-content {
-    padding: 1.5rem 1rem;
+    padding: 1rem 0.75rem 2rem 0.75rem;
     height: auto;
   }
 
   .split-layout {
     flex-direction: column;
     height: auto;
+    gap: 0.75rem;
   }
 
+  /* 左侧对话面板 */
+  .left-panel {
+    min-height: 400px;
+  }
+
+  .left-panel :deep(.chat-container) {
+    max-height: 400px;
+    min-height: 0;
+  }
+
+  .left-panel :deep(.ai-dialog-section) {
+    height: auto;
+    min-height: 400px;
+  }
+
+  /* 右侧技能面板 */
   .right-panel {
     width: 100%;
     max-height: none;
+    min-height: 400px;
   }
 
-  .skill-content {
-    padding: 2rem;
+  .panel-header {
+    padding: 1rem;
+  }
+
+  .panel-title {
+    font-size: 1rem;
+  }
+
+  .panel-subtitle {
+    font-size: 0.8rem;
+  }
+
+  .skill-cards-container {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  /* 技能卡片优化 */
+  .skill-card {
+    border-radius: 10px;
+  }
+
+  .card-header {
+    padding: 0.75rem;
+  }
+
+  .card-title {
+    font-size: 0.9rem;
+  }
+
+  .job-selected-count-inline {
+    font-size: 0.7rem;
+  }
+
+  .card-badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+  }
+
+  .card-skills {
+    padding: 0.5rem;
+  }
+
+  .card-skill-item {
+    padding: 0.6rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .skill-info .skill-name {
+    font-size: 0.85rem;
+  }
+
+  .skill-info .skill-desc {
+    font-size: 0.7rem;
+  }
+
+  .skill-check {
+    width: 18px;
+    height: 18px;
+  }
+
+  .skill-check svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* 底部操作按钮 */
+  .panel-footer {
+    padding: 0.75rem 1rem;
+  }
+
+  .action-btn {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.9rem;
+    border-radius: 8px;
+  }
+
+  /* 空状态优化 */
+  .empty-state {
+    padding: 2rem 1rem;
   }
 
   .empty-icon {
-    font-size: 3rem;
+    font-size: 2.5rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.2rem;
+  }
+
+  .empty-state p {
+    font-size: 0.85rem;
+  }
+
+  /* 消息气泡优化 */
+  .message {
+    margin-bottom: 1rem;
+    gap: 0.5rem;
+  }
+
+  .message-bubble {
+    padding: 0.75rem 1rem;
+    max-width: 85%;
+    border-radius: 14px;
+  }
+
+  /* 建议列表优化 */
+  .suggestions {
+    padding-left: 1rem;
+  }
+
+  .suggestions li {
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+  }
+
+  /* 返回按钮优化 */
+  .back-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  /* 技能内容区域 */
+  .skill-content {
+    padding: 1.5rem 1rem;
+  }
+
+  /* 滚动条优化 */
+  .skill-cards-container::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .skill-cards-container::-webkit-scrollbar-thumb {
+    border-radius: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.75rem 0.5rem 1.5rem 0.5rem;
+  }
+
+  .split-layout {
+    gap: 0.5rem;
+  }
+
+  /* 更小的屏幕适配 */
+  .left-panel {
+    min-height: 350px;
+  }
+
+  .left-panel :deep(.chat-container) {
+    max-height: 350px;
+  }
+
+  .right-panel {
+    min-height: 350px;
+  }
+
+  .panel-header {
+    padding: 0.75rem 0.75rem;
+  }
+
+  .panel-title {
+    font-size: 0.9rem;
+  }
+
+  /* 技能卡片进一步压缩 */
+  .card-header {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+  }
+
+  .card-skill-item {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .skill-info .skill-name {
+    font-size: 0.8rem;
+  }
+
+  .skill-info .skill-desc {
+    font-size: 0.65rem;
+  }
+
+  /* 按钮进一步优化 */
+  .action-btn {
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* 消息气泡进一步优化 */
+  .message-bubble {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .empty-state {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .empty-icon {
+    font-size: 2rem;
+  }
+
+  /* 返回按钮进一步优化 */
+  .back-btn {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-height: 600px) and (orientation: landscape) {
+  .main-content {
+    padding: 0.5rem 1rem 1rem 1rem;
+    height: calc(100vh - 60px);
+  }
+
+  .split-layout {
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .left-panel {
+    min-height: auto;
+  }
+
+  .left-panel :deep(.chat-container) {
+    max-height: calc(100vh - 140px);
+  }
+
+  .right-panel {
+    min-height: auto;
+    max-height: calc(100vh - 140px);
+  }
+
+  .panel-header {
+    padding: 0.75rem;
+  }
+
+  .card-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .card-skill-item {
+    padding: 0.4rem 0.6rem;
+  }
+
+  .skill-info .skill-name {
+    font-size: 0.8rem;
+  }
+
+  .skill-info .skill-desc {
+    font-size: 0.65rem;
+  }
+
+  .panel-footer {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .action-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
   }
 }
 </style>
