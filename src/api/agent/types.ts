@@ -20,6 +20,13 @@ export interface SendMessageRequest {
   major: string
 }
 
+// 保存岗位请求
+export interface SaveJobRequest {
+  jobs: string[]
+  userId?: number
+  jobToken?: string // 前端生成的凭证
+}
+
 // 职业推荐响应（后端返回的是JSON字符串）
 export interface CareerRecommendResponse {
   jobs: string
@@ -28,6 +35,8 @@ export interface CareerRecommendResponse {
 // RAG 搜索请求
 export interface RAGSearchRequest {
   jobs: string[]
+  userId?: number
+  jobToken?: string // 保存岗位后返回的凭证
 }
 
 // 技能详情

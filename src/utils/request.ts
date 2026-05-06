@@ -19,7 +19,9 @@ const isLocal = hostname === 'localhost' ||
                 hostname === '127.0.0.1' ||
                 hostname.startsWith('192.168.') ||
                 hostname.startsWith('10.')
-const baseURL = isLocal ? '/api' : 'http://192.168.253.1:8820/api'
+// 生产环境使用环境变量或默认地址
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8820'
+const baseURL = isLocal ? '/api' : `${apiBaseUrl}/api`
 
 const request = axios.create({
   baseURL,

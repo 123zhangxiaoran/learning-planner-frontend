@@ -244,8 +244,13 @@ const selectCareer = (careerId: number) => {
   }
 }
 
+// 生成3位随机数凭证
+const generateJobToken = (): string => {
+  return Math.floor(100 + Math.random() * 900).toString()
+}
+
 // 跳转到技能页面
-const goToSkillPage = async () => {
+const goToSkillPage = () => {
   if (selectedCareers.value.length === 0) {
     alert('请至少选择1个职业')
     return
@@ -260,15 +265,22 @@ const goToSkillPage = async () => {
     .map((c) => c.title)
   careerStore.setJobNames(selectedJobNames)
 
-  // 后台静默存储到数据库（不阻塞跳转）
-  saveSelectedJobs(selectedJobNames).catch((err: unknown) => {
+  // 前端生成3位随机数凭证
+  const jobToken = generateJobToken()
+  careerStore.setJobToken(jobToken)
+
+  // 后台静默保存岗位和凭证（不阻塞跳转）
+  saveSelectedJobs(selectedJobNames, jobToken).catch((err: unknown) => {
     console.error('保存岗位失败:', err)
   })
 
-  // 跳转到技能页面，传递岗位名称
+  // 立即跳转到技能页面，传递岗位名称和凭证
   router.push({
     path: '/user/skill',
-    query: { jobNames: selectedJobNames.join(',') },
+    query: {
+      jobNames: selectedJobNames.join(','),
+      jobToken: jobToken,
+    },
   })
 }
 </script>

@@ -8,6 +8,7 @@ import type {
   SubmitUserMessageRequest,
   SubmitUserMessageResponse,
   GetUserJobDataResponse,
+  SaveJobRequest,
 } from './types'
 
 export function sendChatMessage(
@@ -22,21 +23,28 @@ export function sendChatMessage(
   })
 }
 
-export function saveJobAndSearchRAG(jobNames: string[]): Promise<ApiResponse<RAGSearchResponse>> {
+export function saveJobAndSearchRAG(
+  jobNames: string[],
+  jobToken?: string,
+  userId?: number,
+): Promise<ApiResponse<RAGSearchResponse>> {
   return request<RAGSearchResponse>({
     url: '/agent/searchSkills',
     method: 'post',
-    data: { jobs: jobNames } as RAGSearchRequest,
+    data: { jobs: jobNames, jobToken, userId } as RAGSearchRequest,
   })
 }
 
-export function saveSelectedJobs(jobNames: string[]): Promise<ApiResponse<void>> {
+export function saveSelectedJobs(
+  jobNames: string[],
+  jobToken?: string,
+): Promise<ApiResponse<string>> {
   const playerStore = usePlayerStore()
   const userId = playerStore.playerInfo?.id
-  return request<void>({
+  return request<string>({
     url: '/agent/savejob',
     method: 'post',
-    data: { jobs: jobNames, userId },
+    data: { jobs: jobNames, userId, jobToken } as SaveJobRequest,
   })
 }
 

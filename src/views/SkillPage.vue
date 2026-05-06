@@ -191,24 +191,34 @@ const collapsedJobs = ref<number[]>([])
 
 // 初始化时将所有岗位设为折叠状态
 const initCollapsedJobs = () => {
-  collapsedJobs.value = skillOptions.value.map((job) => job.id)
+  // 确保 skillOptions 有数据再初始化
+  if (skillOptions.value.length > 0) {
+    collapsedJobs.value = skillOptions.value.map((job) => job.id)
+  } else {
+    collapsedJobs.value = []
+  }
 }
 
 // 将后端返回的技能数据转换为展示格式，按点击顺序排序
 const skillOptions = computed(() => {
+  // 如果没有技能数据，返回空数组
+  if (!skillsData.value || skillsData.value.length === 0) {
+    return []
+  }
+
   // 按照 selectedJobNames 的顺序对技能数据进行排序
   const orderedSkills = selectedJobNames.value
     .map((jobName) => {
       return skillsData.value.find((skill) => skill.job_name === jobName)
     })
-    .filter(Boolean)
+    .filter((skill): skill is SkillItem => skill !== undefined)
 
   return orderedSkills.map((skill, index) => ({
     id: index + 1,
-    name: skill!.job_name,
-    skillList: skill!.skills,
-    major: skill!.major,
-    score: skill!.score,
+    name: skill.job_name,
+    skillList: skill.skills,
+    major: skill.major,
+    score: skill.score,
   }))
 })
 
@@ -265,65 +275,109 @@ const getJobSelectedCount = (job: { skillList: { name: string }[] }) => {
 }
 
 onMounted(async () => {
-  const jobNamesParam = route.query.jobNames as string
-  const storeJobNames = careerStore.selectedJobNames
+  try {
+    const jobNamesParam = route.query.jobNames as string
+    const jobTokenParam = route.query.jobToken as string
 
-  // 优先使用 query 参数，否则使用 store 中的数据
-  let jobNames = jobNamesParam ? jobNamesParam.split(',') : storeJobNames
+    // 安全获取 store 中的数据，确保是数组
+    let storeJobNames: string[] = []
+    try {
+      const names = careerStore.selectedJobNames
+      storeJobNames = Array.isArray(names) ? names : []
+    } catch (e) {
+      console.warn('获取 store jobNames 失败:', e)
+      storeJobNames = []
+    }
 
-  // 如果没有数据，发送阻塞请求获取用户数据
-  if (
-    (!jobNamesParam && (!storeJobNames || storeJobNames.length === 0)) ||
-    (storeJobNames && storeJobNames.length === 0)
-  ) {
-    const userId = playerStore.playerInfo?.id
-    if (userId) {
+    // 优先使用 query 参数，否则使用 store 中的数据
+    let jobNames: string[] = []
+    if (jobNamesParam) {
+      jobNames = jobNamesParam.split(',').filter(Boolean)
+    } else if (storeJobNames.length > 0) {
+      jobNames = storeJobNames
+    }
+
+    // 优先使用 URL 中的凭证，否则使用 store 中的凭证
+    const jobToken = jobTokenParam || careerStore.jobToken
+
+    // 如果没有数据，发送阻塞请求获取用户数据
+    if (jobNames.length === 0) {
+      const userId = playerStore.playerInfo?.id
+      if (userId) {
+        isLoading.value = true
+        try {
+          const res = await getUserJobData(userId)
+          if (res.code === 200 && res.data) {
+            // data 是 JSON 字符串，需要先解析
+            const responseData = JSON.parse(res.data as unknown as string)
+            // 后端返回 query 和 skills
+            jobNames = Array.isArray(responseData.query) ? responseData.query : []
+            selectedJobNames.value = jobNames
+
+            // 保存岗位名称到 store（使用后端返回的 query 更新）
+            if (jobNames.length > 0) {
+              careerStore.setJobNames(jobNames)
+            }
+
+            // 如果后端返回了 jobToken，保存到 store
+            if (responseData.jobToken !== undefined && responseData.jobToken !== null) {
+              careerStore.setJobToken(String(responseData.jobToken))
+            }
+
+            // 直接使用后端返回的技能数据
+            skillsData.value = Array.isArray(responseData.skills) ? responseData.skills : []
+
+            // 等待下一个 tick 再初始化折叠状态，确保 computed 已更新
+            await nextTick()
+            initCollapsedJobs()
+          }
+        } catch (error) {
+          console.error('获取用户数据失败:', error)
+        } finally {
+          isLoading.value = false
+        }
+      }
+
+      // 仍然没有数据则返回
+      if (jobNames.length === 0) {
+        return
+      }
+    } else {
+      // 有数据时直接请求技能列表
+      selectedJobNames.value = jobNames
       isLoading.value = true
       try {
-        const res = await getUserJobData(userId)
-        if (res.code === 200 && res.data) {
-          // data 是 JSON 字符串，需要先解析
+        const userId = playerStore.playerInfo?.id
+        const res = await saveJobAndSearchRAG(jobNames, jobToken || undefined, userId)
+        if (res.code === 200) {
           const responseData = JSON.parse(res.data as unknown as string)
-          // 后端返回 jobNames 和 skills
-          jobNames = responseData.query || []
-          selectedJobNames.value = jobNames
+          skillsData.value = Array.isArray(responseData.skills) ? responseData.skills : []
 
-          // 保存岗位名称到 store
-          if (jobNames.length > 0) {
-            careerStore.setJobNames(jobNames)
+          // 只有当后端返回 jobToken 时，才把 query 同步到 pinia
+          if (responseData.jobToken !== undefined && responseData.jobToken !== null) {
+            // 保存 jobToken 到 pinia
+            careerStore.setJobToken(String(responseData.jobToken))
+
+            // 保存 query 到 pinia（只有在有 jobToken 时才同步）
+            if (responseData.query && Array.isArray(responseData.query)) {
+              const backendJobNames = responseData.query as string[]
+              selectedJobNames.value = backendJobNames
+              careerStore.setJobNames(backendJobNames)
+            }
           }
 
-          // 直接使用后端返回的技能数据
-          skillsData.value = responseData.skills || []
+          // 等待下一个 tick 再初始化折叠状态
+          await nextTick()
           initCollapsedJobs()
         }
       } catch (error) {
-        console.error('获取用户数据失败:', error)
+        console.error('RAG 检索失败:', error)
       } finally {
         isLoading.value = false
       }
     }
-
-    // 仍然没有数据则返回
-    if (!jobNames || jobNames.length === 0) {
-      return
-    }
-  } else {
-    // 有数据时直接请求技能列表
-    selectedJobNames.value = jobNames
-    isLoading.value = true
-    try {
-      const res = await saveJobAndSearchRAG(jobNames)
-      if (res.code === 200) {
-        const responseData = JSON.parse(res.data as unknown as string)
-        skillsData.value = responseData.skills || []
-        initCollapsedJobs()
-      }
-    } catch (error) {
-      console.error('RAG 检索失败:', error)
-    } finally {
-      isLoading.value = false
-    }
+  } catch (error) {
+    console.error('SkillPage onMounted 错误:', error)
   }
 })
 
