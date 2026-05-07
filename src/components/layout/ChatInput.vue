@@ -169,4 +169,58 @@ const handleSend = () => {
     transform: scale(0.9);
   }
 }
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+  .chat-input-wrapper {
+    gap: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 30px;
+  }
+
+  .chat-input {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .send-button {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    flex-shrink: 0;
+  }
+
+  .send-button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .loading-hint {
+    right: 3rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .chat-input-wrapper {
+    gap: 0.3rem;
+    padding: 0.25rem 0.3rem;
+  }
+
+  .chat-input {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .send-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+
+  .send-button svg {
+    width: 14px;
+    height: 14px;
+  }
+}
 </style>

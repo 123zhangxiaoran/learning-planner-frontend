@@ -420,12 +420,95 @@ const handleButtonClick = () => {
 
 @media (max-width: 480px) {
   .section-title {
-    font-size: 1.8rem;
+    font-size: 1.4rem;
+  }
+
+  .section-subtitle {
+    font-size: 0.85rem;
+    line-height: 1.4;
   }
 
   .header-badge {
-    font-size: 0.65rem;
-    padding: 0.3rem 0.8rem;
+    font-size: 0.55rem;
+    padding: 0.2rem 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .header-right {
+    display: none !important;
+  }
+
+  .chat-container {
+    padding: 0.8rem;
+    min-height: 200px;
+  }
+
+  .message-bubble {
+    max-width: 85%;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 12px;
+  }
+
+  .suggestions li {
+    font-size: 0.8rem;
+  }
+
+  .input-wrapper {
+    gap: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 30px;
+  }
+
+  .chat-input {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .send-button {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    flex-shrink: 0;
+  }
+
+  .send-button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .loading-hint {
+    right: 3rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .input-wrapper {
+    gap: 0.3rem;
+    padding: 0.25rem 0.3rem;
+  }
+
+  .chat-input {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .send-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+
+  .send-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .message-bubble {
+    max-width: 90%;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
   }
 }
 </style>

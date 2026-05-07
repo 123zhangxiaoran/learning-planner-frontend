@@ -888,25 +888,145 @@ const goToSkillPage = () => {
 }
 
 @media (max-width: 480px) {
+  .main-content {
+    padding: 0.8rem 0.4rem;
+  }
+
+  .section-header {
+    margin-bottom: 1rem;
+  }
+
   .section-title {
-    font-size: 1.8rem;
+    font-size: 1.4rem;
+  }
+
+  .section-subtitle {
+    font-size: 0.85rem;
+    line-height: 1.4;
   }
 
   .header-badge {
+    font-size: 0.55rem;
+    padding: 0.2rem 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .chat-container {
+    padding: 0.8rem;
+    min-height: 250px;
+    border-radius: 12px;
+  }
+
+  .message-bubble {
+    max-width: 85%;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 12px;
+  }
+
+  .career-bubble {
+    max-width: 100% !important;
+    width: 100%;
+    padding: 0.8rem !important;
+  }
+
+  .career-item {
+    padding: 0.6rem;
+  }
+
+  .career-item-title {
+    font-size: 0.9rem;
+  }
+
+  .career-item-desc {
+    font-size: 0.75rem;
+  }
+
+  .career-item-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+
+  .career-item-match {
     font-size: 0.65rem;
-    padding: 0.3rem 0.8rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .career-list {
+    gap: 0.8rem;
+  }
+
+  .career-reply-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .next-step-container {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+  }
+
+  .next-step-btn {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.85rem;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .selection-info {
+    font-size: 0.8rem;
   }
 
   .career-card {
-    padding: 1rem;
+    padding: 0.8rem;
   }
 
   .card-title {
-    font-size: 1.1rem;
+    font-size: 1rem;
   }
 
   .card-description {
+    font-size: 0.8rem;
+  }
+
+  .suggestions {
+    padding-left: 1.2rem;
+  }
+
+  .suggestions li {
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+  }
+}
+
+/* 超小屏幕竖屏 */
+@media (max-width: 380px) {
+  .section-title {
+    font-size: 1.2rem;
+  }
+
+  .message-bubble {
+    max-width: 90%;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .chat-container {
+    padding: 0.6rem;
+    min-height: 200px;
+  }
+
+  .career-reply-title {
     font-size: 0.85rem;
+  }
+
+  .career-item-title {
+    font-size: 0.85rem;
+  }
+
+  .career-item-desc {
+    font-size: 0.7rem;
   }
 }
 </style>

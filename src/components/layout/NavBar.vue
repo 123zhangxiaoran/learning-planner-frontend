@@ -86,12 +86,32 @@ function isActive(path: string): boolean {
 @media (max-width: 768px) {
   .top-nav {
     flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1rem;
+  }
+
+  .logo-section {
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 1.1rem;
+  }
+
+  .logo-tagline {
+    font-size: 0.75rem;
   }
 
   .nav-links {
-    gap: 1rem;
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+  }
+
+  .nav-link {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.4rem;
+    white-space: nowrap;
   }
 }
 </style>

@@ -36,18 +36,13 @@
             @sendMessage="handleSendMessage"
             @cancel="cancelSendMessage"
           >
-            <!-- 标题右侧插槽：返回按钮 -->
-            <template #header-right>
-              <router-link to="/user/career" class="back-btn"> ⬅ 返回职业选择 </router-link>
-            </template>
-
             <!-- AI消息（技能列表加载完成后显示） -->
             <div v-if="!isLoading && skillOptions.length > 0" class="message ai-message">
               <div class="message-bubble">
-                <p>右侧是推荐技能，也可以和我聊聊，帮你找到最适合的：</p>
+                <p>和我聊聊可以帮你找到心仪的技能哦：</p>
                 <ul class="suggestions">
                   <li>"我想学HTML"</li>
-                  <li>"我想设计一个壮观的页面"</li>
+                  <li>"我想设计一个好看的页面"</li>
                   <li>"我在逻辑处理上有点兴趣"</li>
                 </ul>
               </div>
@@ -1214,18 +1209,137 @@ const cancelSendMessage = () => {
 
 /* ========= 响应式适配 ========= */
 @media (max-width: 1024px) {
-  .split-layout {
-    flex-direction: column;
-    gap: 1rem;
+  .main-content {
+    height: auto;
+    padding: 1rem 1.5%;
   }
 
-  .right-panel {
-    width: 100%;
-    max-height: 500px;
+  .split-layout {
+    flex-direction: row;
+    height: auto;
+    gap: 1.5rem;
+    align-items: stretch;
+  }
+
+  .left-panel {
+    flex: 2;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .left-panel :deep(.ai-dialog-section) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
 
   .left-panel :deep(.chat-container) {
-    max-height: 500px;
+    flex: 1;
+    max-height: none;
+    min-height: 400px;
+  }
+
+  .left-panel :deep(.input-container) {
+    margin-top: auto;
+  }
+
+  .right-panel {
+    width: 320px;
+    flex-shrink: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .skill-cards-container {
+    flex: 1;
+    max-height: none;
+    min-height: 400px;
+  }
+
+  .panel-footer {
+    margin-top: auto;
+  }
+}
+
+/* 平板横屏 (宽度 > 768px 且高度较小) */
+@media (min-width: 769px) and (max-width: 1024px) and (max-height: 800px) {
+  .main-content {
+    height: auto;
+    min-height: calc(100vh - 100px);
+  }
+
+  .split-layout {
+    flex-direction: row;
+    height: auto;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .left-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .left-panel :deep(.ai-dialog-section) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: auto;
+  }
+
+  .left-panel :deep(.chat-container) {
+    flex: 1;
+    max-height: none;
+    min-height: 350px;
+  }
+
+  .left-panel :deep(.input-container) {
+    margin-top: auto;
+  }
+
+  .right-panel {
+    width: 300px;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .skill-cards-container {
+    flex: 1;
+    max-height: none;
+    min-height: 350px;
+  }
+
+  .panel-footer {
+    margin-top: auto;
+  }
+
+  .panel-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .panel-title {
+    font-size: 1rem;
+  }
+
+  .card-header {
+    padding: 0.6rem;
+  }
+
+  .card-title {
+    font-size: 0.9rem;
+  }
+
+  .card-skills {
+    padding: 0.5rem;
+  }
+
+  .card-skill-item {
+    padding: 0.5rem;
+    margin-bottom: 0.4rem;
   }
 }
 

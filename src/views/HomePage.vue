@@ -240,7 +240,6 @@
         <span class="anti-ai-title">反AI彩蛋</span>
       </div>
       <p class="anti-ai-quote">{{ currentQuote }}</p>
-      <button class="anti-ai-refresh" @click="refreshQuote">换一条</button>
     </div>
 
     <!-- 悬浮提示 -->
@@ -789,6 +788,10 @@ onUnmounted(() => {
     margin-left: 0 !important;
     margin-top: 0 !important;
   }
+
+  .anti-ai-widget {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
@@ -877,13 +880,7 @@ onUnmounted(() => {
   }
 
   .anti-ai-widget {
-    position: relative;
-    bottom: auto;
-    right: auto;
-    width: 100%;
-    margin-top: 2rem;
-    transform: none;
-    padding: 1rem;
+    display: none;
   }
 
   .anti-ai-quote {
@@ -941,25 +938,7 @@ onUnmounted(() => {
   }
 
   .anti-ai-widget {
-    margin-top: 1.5rem;
-    padding: 0.8rem;
-  }
-
-  .anti-ai-header {
-    margin-bottom: 0.5rem;
-  }
-
-  .anti-ai-title {
-    font-size: 0.7rem;
-  }
-
-  .anti-ai-quote {
-    font-size: 0.8rem;
-  }
-
-  .anti-ai-refresh {
-    padding: 0.3rem 0.8rem;
-    font-size: 0.7rem;
+    display: none;
   }
 
   .floating-tooltip {
