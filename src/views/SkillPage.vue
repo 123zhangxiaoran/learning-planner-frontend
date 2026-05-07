@@ -402,8 +402,8 @@ const scrollToBottom = () => {
 }
 
 const handleSendMessage = async (message: string) => {
-  // 添加新的对话记录
-  chatRecords.value.push({ userMessage: message })
+  // 添加新的对话记录（包含思考中占位）
+  chatRecords.value.push({ userMessage: message, aiReply: '小顾问思考中...' })
   isSendingMessage.value = true
 
   // 滚动到底部
@@ -450,10 +450,10 @@ const handleSendMessage = async (message: string) => {
         const lastRecord = chatRecords.value[chatRecords.value.length - 1]
         if (lastRecord) {
           const noMatchReplies = [
-            `嗯...你说的这个好像和你选的岗位不太搭哦，看看右侧有没有心仪的？`,
-            `你这个问题和选的岗位没太对上，看看右侧技能列表挑一个？`,
-            `你选的岗位里没有很匹配这个的，不妨看看右侧自己选一个？`,
-            `这个问题和你的岗位方向不太一致，看看右边有没有感兴趣的技能？`,
+            `嗯...你说的这个好像和你选的岗位不太搭哦，自己看看有没有心仪的？`,
+            `你这个问题和选的岗位没太对上，要不自己挑选一个技能？`,
+            `你选的岗位里没有很匹配这个的，不妨自己选一个？`,
+            `这个问题和你的岗位方向不太一致，看看有没有自己感兴趣的技能？`,
           ]
           lastRecord.aiReply = noMatchReplies[Math.floor(Math.random() * noMatchReplies.length)]
           scrollToBottom()
@@ -464,11 +464,11 @@ const handleSendMessage = async (message: string) => {
     // 判断是否是用户主动取消
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('请求已取消')
-      // 移除最后一条对话记录
-      chatRecords.value.pop()
     } else {
       console.error('消息提交失败:', error)
     }
+    // 移除最后一条对话记录（包括思考中占位）
+    chatRecords.value.pop()
   } finally {
     isSendingMessage.value = false
     abortController = null
