@@ -27,11 +27,12 @@ export function saveJobAndSearchRAG(
   jobNames: string[],
   jobToken?: string,
   userId?: number,
+  newData?: boolean,
 ): Promise<ApiResponse<RAGSearchResponse>> {
   return request<RAGSearchResponse>({
     url: '/agent/searchSkills',
     method: 'post',
-    data: { jobs: jobNames, jobToken, userId } as RAGSearchRequest,
+    data: { jobs: jobNames, jobToken, userId, newData } as RAGSearchRequest,
   })
 }
 

@@ -12,6 +12,7 @@ export interface CareerStorage {
   jobNames: string[] // 选中的岗位名称列表
   timestamp: number // 存储时间戳
   jobToken?: string // 保存岗位后返回的凭证
+  hasCalledSaveJob?: boolean // 是否已调用过 saveJob 接口
 }
 
 export const useCareerStore = defineStore('career', () => {
@@ -29,12 +30,16 @@ export const useCareerStore = defineStore('career', () => {
   }
 
   // 从 localStorage 初始化数据
-  const initFromStorage = (): { jobNames: string[]; jobToken: string | null } => {
+  const initFromStorage = (): {
+    jobNames: string[]
+    jobToken: string | null
+    hasCalledSaveJob: boolean
+  } => {
     if (isExpired()) {
       // 已过期，清除数据
       localStorage.removeItem(STORAGE_KEY)
       localStorage.removeItem(EXPIRY_KEY)
-      return { jobNames: [], jobToken: null }
+      return { jobNames: [], jobToken: null, hasCalledSaveJob: false }
     }
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
@@ -44,15 +49,17 @@ export const useCareerStore = defineStore('career', () => {
         const jobNames = Array.isArray(data.jobNames) ? data.jobNames : []
         // 确保 jobToken 是字符串或 null
         const jobToken = data.jobToken != null ? String(data.jobToken) : null
-        return { jobNames, jobToken }
+        // 确保 hasCalledSaveJob 是布尔值
+        const hasCalledSaveJob = data.hasCalledSaveJob === true
+        return { jobNames, jobToken, hasCalledSaveJob }
       } catch {
         // 解析失败，清除数据
         localStorage.removeItem(STORAGE_KEY)
         localStorage.removeItem(EXPIRY_KEY)
-        return { jobNames: [], jobToken: null }
+        return { jobNames: [], jobToken: null, hasCalledSaveJob: false }
       }
     }
-    return { jobNames: [], jobToken: null }
+    return { jobNames: [], jobToken: null, hasCalledSaveJob: false }
   }
 
   // 从 storage 初始化数据
@@ -64,6 +71,9 @@ export const useCareerStore = defineStore('career', () => {
   // 保存岗位后返回的凭证
   const jobToken = ref<string | null>(storageData.jobToken)
 
+  // 是否已调用过 saveJob 接口（用于判断 searchSkill 首次调用时是否传 isNews）
+  const hasCalledSaveJob = ref<boolean>(storageData.hasCalledSaveJob ?? false)
+
   // 保存到 localStorage 并设置过期时间
   const saveToStorage = () => {
     try {
@@ -71,6 +81,7 @@ export const useCareerStore = defineStore('career', () => {
         jobNames: selectedJobNames.value,
         timestamp: Date.now(),
         jobToken: jobToken.value || undefined,
+        hasCalledSaveJob: hasCalledSaveJob.value,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
       localStorage.setItem(EXPIRY_KEY, String(Date.now() + SEVEN_DAYS))
@@ -108,11 +119,18 @@ export const useCareerStore = defineStore('career', () => {
     saveToStorage()
   }
 
+  // 标记已调用过 saveJob 接口
+  const setHasCalledSaveJob = (called: boolean) => {
+    hasCalledSaveJob.value = called
+    saveToStorage()
+  }
+
   // 清空岗位名称（token过期或退出登录时调用）
   const clearJobNames = () => {
     try {
       selectedJobNames.value = []
       jobToken.value = null
+      hasCalledSaveJob.value = false
       localStorage.removeItem(STORAGE_KEY)
       localStorage.removeItem(EXPIRY_KEY)
     } catch (error) {
@@ -123,10 +141,12 @@ export const useCareerStore = defineStore('career', () => {
   return {
     selectedJobNames,
     jobToken,
+    hasCalledSaveJob,
     setJobNames,
     addJobName,
     removeJobName,
     setJobToken,
+    setHasCalledSaveJob,
     clearJobNames,
   }
 })

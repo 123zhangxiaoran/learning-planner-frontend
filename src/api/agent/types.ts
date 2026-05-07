@@ -37,6 +37,7 @@ export interface RAGSearchRequest {
   jobs: string[]
   userId?: number
   jobToken?: string // 保存岗位后返回的凭证
+  newData?: boolean // 是否首次调用（从Career保存岗位后首次调用searchSkill）
 }
 
 // 技能详情

@@ -343,7 +343,11 @@ onMounted(async () => {
       isLoading.value = true
       try {
         const userId = playerStore.playerInfo?.id
-        const res = await saveJobAndSearchRAG(jobNames, jobToken || undefined, userId)
+        // 判断是否是首次调用（从Career保存岗位后首次调用searchSkill）
+        const newData = careerStore.hasCalledSaveJob
+        const res = await saveJobAndSearchRAG(jobNames, jobToken || undefined, userId, newData)
+        // 调用后重置标记
+        careerStore.setHasCalledSaveJob(false)
         if (res.code === 200) {
           const responseData = JSON.parse(res.data as unknown as string)
           skillsData.value = Array.isArray(responseData.skills) ? responseData.skills : []

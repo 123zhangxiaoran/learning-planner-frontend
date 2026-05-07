@@ -273,6 +273,8 @@ const goToSkillPage = () => {
   saveSelectedJobs(selectedJobNames, jobToken).catch((err: unknown) => {
     console.error('保存岗位失败:', err)
   })
+  // 标记已调用过 saveJob 接口，用于 SkillPage 判断是否传 isNews
+  careerStore.setHasCalledSaveJob(true)
 
   // 立即跳转到技能页面，传递岗位名称和凭证
   router.push({
