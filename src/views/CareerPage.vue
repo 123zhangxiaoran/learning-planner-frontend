@@ -566,12 +566,6 @@ const goToSkillPage = () => {
   gap: 0.5rem;
 }
 
-.selection-count {
-  font-size: 1rem;
-  color: var(--accent-teal);
-  font-weight: 600;
-}
-
 .selection-hint {
   font-size: 0.85rem;
   color: var(--text-secondary);
@@ -619,10 +613,6 @@ const goToSkillPage = () => {
 
   .section-title {
     font-size: 2.5rem;
-  }
-
-  .career-grid {
-    grid-template-columns: 1fr;
   }
 }
 
