@@ -23,110 +23,105 @@
 
     <!-- AI对话区域 -->
     <main class="main-content">
-      <section class="ai-dialog-section">
-        <!-- 标题区域 -->
-        <div class="section-header">
-          <div class="header-badge">AI 职业顾问</div>
-          <h1 class="section-title">助你选择合适岗位</h1>
-          <p class="section-subtitle">
-            基于你的专业和兴趣，AI为你筛选匹配的就业方向<br />
-            <span class="highlight">快速了解岗位要求和就业前景。</span>
-          </p>
-        </div>
+      <!-- 标题区域 -->
+      <div class="section-header">
+        <div class="header-badge">AI 职业顾问</div>
+        <h1 class="section-title">助你选择合适岗位</h1>
+        <p class="section-subtitle">
+          基于你的专业和兴趣，AI为你筛选匹配的就业方向<br />
+          <span class="highlight">快速了解岗位要求和就业前景。</span>
+        </p>
+      </div>
 
-        <!-- 对话气泡区域 -->
-        <div class="chat-container">
-          <!-- AI消息 -->
-          <div class="message ai-message">
-            <div class="message-bubble">
-              <p>你好！我是职业规划AI助手。你可以问我：</p>
-              <ul class="suggestions">
-                <li>"我的专业是计算机科学"</li>
-                <li>"我对数据分析感兴趣"</li>
-                <li>"我喜欢和数字打交道"</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- 用户消息 -->
-          <div v-if="userMessage" class="message user-message">
-            <div class="message-bubble">
-              <p>{{ userMessage }}</p>
-            </div>
-          </div>
-
-          <!-- AI正在搜索提示 -->
-          <div v-if="isSearching" class="message ai-message">
-            <div class="message-bubble">
-              <p>职业小顾问在努力搜索中....</p>
-            </div>
-          </div>
-
-          <!-- AI回复消息（当没有找到岗位时显示） -->
-          <div v-if="aiMessage && !showCareerOptions && !isSearching" class="message ai-message">
-            <div class="message-bubble">
-              <p>{{ aiMessage }}</p>
-            </div>
-          </div>
-
-          <!-- AI回复消息（气泡形式展示推荐结果）-->
-          <div v-if="showCareerOptions" class="message ai-message career-message">
-            <div class="message-bubble career-bubble">
-              <p class="career-reply-title">为你推荐以下职业：</p>
-              <div class="career-list">
-                <div
-                  v-for="career in careerOptions"
-                  :key="career.id"
-                  class="career-item"
-                  :class="{ selected: selectedCareers.includes(career.id) }"
-                  @click="selectCareer(career.id)"
-                >
-                  <div class="career-item-header">
-                    <span class="career-item-title">{{ career.title }}</span>
-                    <span class="career-item-match"
-                      >{{ Math.round(career.similarity * 100) }}%</span
-                    >
-                  </div>
-                  <p class="career-item-desc">{{ career.description }}</p>
-                  <div class="career-item-stats">
-                    <span class="stat">专业: {{ career.major }}</span>
-                  </div>
-                </div>
-              </div>
-              <!-- 下一步按钮 -->
-              <div class="next-step-container" v-if="showCareerOptions">
-                <div class="selection-info">
-                  <span class="selection-count">已选择: {{ selectedCareers.length }}/3</span>
-                  <span class="selection-hint" v-if="selectedCareers.length === 0"
-                    >请至少选择1个职业</span
-                  >
-                  <span class="selection-hint warning" v-else-if="selectedCareers.length > 3"
-                    >最多只能选择3个职业</span
-                  >
-                </div>
-                <button
-                  class="next-step-btn"
-                  :class="{ disabled: selectedCareers.length === 0 || selectedCareers.length > 3 }"
-                  @click="goToSkillPage"
-                  :disabled="selectedCareers.length === 0 || selectedCareers.length > 3"
-                >
-                  <span class="next-step-text">开始分析技能路径</span>
-                  <span class="next-step-arrow">→</span>
-                </button>
-              </div>
-            </div>
+      <!-- 对话气泡区域 -->
+      <div class="chat-container">
+        <!-- AI消息 -->
+        <div class="message ai-message">
+          <div class="message-bubble">
+            <p>你好！我是职业规划AI助手。你可以问我：</p>
+            <ul class="suggestions">
+              <li>"我的专业是计算机科学"</li>
+              <li>"我对数据分析感兴趣"</li>
+              <li>"我喜欢和数字打交道"</li>
+            </ul>
           </div>
         </div>
 
-        <!-- 输入区域 -->
-        <ChatInput
-          v-model="userInput"
-          placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
-          :is-loading="isSearching"
-          @send="sendMessage"
-          @cancel="cancelRequest"
-        />
-      </section>
+        <!-- 用户消息 -->
+        <div v-if="userMessage" class="message user-message">
+          <div class="message-bubble">
+            <p>{{ userMessage }}</p>
+          </div>
+        </div>
+
+        <!-- AI正在搜索提示 -->
+        <div v-if="isSearching" class="message ai-message">
+          <div class="message-bubble">
+            <p>职业小顾问在努力搜索中....</p>
+          </div>
+        </div>
+
+        <!-- AI回复消息（当没有找到岗位时显示） -->
+        <div v-if="aiMessage && !showCareerOptions && !isSearching" class="message ai-message">
+          <div class="message-bubble">
+            <p>{{ aiMessage }}</p>
+          </div>
+        </div>
+
+        <!-- AI回复消息（气泡形式展示推荐结果）-->
+        <div v-if="showCareerOptions" class="message ai-message career-message">
+          <div class="message-bubble career-bubble">
+            <p class="career-reply-title">为你推荐以下职业：</p>
+            <div class="career-list">
+              <div
+                v-for="career in careerOptions"
+                :key="career.id"
+                class="career-item"
+                :class="{ selected: selectedCareers.includes(career.id) }"
+                @click="selectCareer(career.id)"
+              >
+                <div class="career-item-header">
+                  <span class="career-item-title">{{ career.title }}</span>
+                  <span class="career-item-match">{{ Math.round(career.similarity * 100) }}%</span>
+                </div>
+                <p class="career-item-desc">{{ career.description }}</p>
+                <div class="career-item-stats">
+                  <span class="stat">专业: {{ career.major }}</span>
+                </div>
+              </div>
+            </div>
+            <!-- 下一步按钮 -->
+            <div class="next-step-container" v-if="showCareerOptions">
+              <div class="selection-info">
+                <span class="selection-hint" v-if="selectedCareers.length === 0"
+                  >请至少选择1个职业</span
+                >
+                <span class="selection-hint warning" v-else-if="selectedCareers.length >= 3"
+                  >最多只能选择3个职业</span
+                >
+              </div>
+              <button
+                class="next-step-btn"
+                :class="{ disabled: selectedCareers.length === 0 || selectedCareers.length > 3 }"
+                @click="goToSkillPage"
+                :disabled="selectedCareers.length === 0 || selectedCareers.length > 3"
+              >
+                <span class="next-step-text">开始分析技能路径</span>
+                <span class="next-step-arrow">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <ChatInput
+        v-model="userInput"
+        placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
+        :is-loading="isSearching"
+        @send="sendMessage"
+        @cancel="cancelRequest"
+      />
     </main>
   </div>
 </template>
@@ -176,7 +171,7 @@ const sendMessage = async () => {
 
     try {
       // 延迟 3 秒后再发送请求，确保后端有足够时间处理
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      await new Promise((resolve) => setTimeout(resolve, 3000))
 
       const res = await sendChatMessage({ major: major }, abortController.signal)
       if (res.code === 200) {
@@ -552,169 +547,6 @@ const goToSkillPage = () => {
   font-weight: 600;
 }
 
-/* ========= 职业选项区域 ========= */
-.career-options {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 12px;
-  border: 1px dashed var(--border-color);
-}
-
-.options-header {
-  margin-bottom: 1.5rem;
-}
-
-.options-badge {
-  display: inline-block;
-  background: var(--accent-teal);
-  color: var(--bg-dark);
-  padding: 0.3rem 0.8rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border-radius: 12px;
-  margin-bottom: 0.5rem;
-}
-
-.options-header h3 {
-  color: var(--text-primary);
-  font-size: 1.3rem;
-  font-weight: 700;
-}
-
-/* 职业卡片网格 */
-.career-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.career-card {
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  position: relative;
-  cursor: pointer;
-  transition: all 0.3s;
-  transform: rotate(var(--rotation, 0deg));
-}
-
-.career-card.selected {
-  border-color: var(--accent-orange);
-  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.2);
-}
-
-.career-card:hover {
-  transform: rotate(0deg) translateY(-5px);
-  border-color: var(--accent-orange);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-}
-
-.card-icon {
-  font-size: 2rem;
-  margin-bottom: 1rem;
-}
-
-.card-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-}
-
-.card-description {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 1rem;
-}
-
-.card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.tag {
-  background: rgba(46, 196, 182, 0.1);
-  color: var(--accent-teal);
-  padding: 0.2rem 0.6rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.card-stats {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.stat {
-  background: rgba(255, 107, 53, 0.1);
-  color: var(--accent-orange);
-  padding: 0.3rem 0.8rem;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.card-link {
-  color: var(--accent-teal);
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.career-card:hover .card-link {
-  color: var(--accent-orange);
-}
-
-.card-sketch {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  width: 40px;
-  opacity: 0.3;
-}
-
-/* ========= 卡片动作区域 ========= */
-.card-action {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-}
-
-.action-btn {
-  background: rgba(46, 196, 182, 0.1);
-  border: 2px solid var(--accent-teal);
-  color: var(--accent-teal);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-  min-width: 80px;
-}
-
-.action-btn:hover {
-  background: var(--accent-teal);
-  color: var(--bg-dark);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 196, 182, 0.3);
-}
-
-.action-btn.active {
-  background: var(--accent-orange);
-  border-color: var(--accent-orange);
-  color: var(--bg-dark);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
-}
-
 /* ========= 下一步按钮 ========= */
 .next-step-container {
   display: flex;
@@ -779,71 +611,6 @@ const goToSkillPage = () => {
   background: linear-gradient(145deg, #ff7b4f, #ff6b35);
 }
 
-.next-step-icon {
-  font-size: 1.3rem;
-}
-
-.next-step-text {
-  font-size: 1rem;
-}
-
-.next-step-arrow {
-  font-size: 1.2rem;
-  font-weight: 900;
-  transition: transform 0.3s ease;
-}
-
-.next-step-btn:hover .next-step-arrow {
-  transform: translateX(5px);
-}
-
-/* ========= 浮动装饰 ========= */
-.floating-decoration {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  z-index: 5;
-}
-
-.decoration-item {
-  font-size: 1.5rem;
-  opacity: 0.1;
-  animation: float 3s ease-in-out infinite;
-}
-
-.decoration-item:nth-child(2) {
-  animation-delay: 1s;
-}
-
-.decoration-item:nth-child(3) {
-  animation-delay: 2s;
-}
-
-/* ========= 动画 ========= */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
 /* ========= 响应式适配 ========= */
 @media (max-width: 1024px) {
   .main-content {
@@ -878,14 +645,6 @@ const goToSkillPage = () => {
 
   .message-bubble {
     max-width: 85%;
-  }
-
-  .input-wrapper {
-    border-radius: 25px;
-  }
-
-  .floating-decoration {
-    display: none;
   }
 }
 
@@ -977,18 +736,6 @@ const goToSkillPage = () => {
   }
 
   .selection-info {
-    font-size: 0.8rem;
-  }
-
-  .career-card {
-    padding: 0.8rem;
-  }
-
-  .card-title {
-    font-size: 1rem;
-  }
-
-  .card-description {
     font-size: 0.8rem;
   }
 
