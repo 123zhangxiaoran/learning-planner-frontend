@@ -27,23 +27,24 @@
         <!-- 左侧：对话区域 -->
         <section class="left-panel">
           <AIDialog
-            titleBadge="技能学习"
-            title="分析你的技能树"
-            subtitle="告诉我你想掌握的技能，我来为你规划学习路径"
-            highlightText="选择技能开始你的提升计划。"
-            placeholder="想学什么技能？小顾问来帮你鉴赏一番~"
+            titleBadge="AI小顾问"
+            title="技能学习助手"
+            subtitle="我是你的AI学习小顾问，帮你规划成长路径"
+            highlightText="确认一个技能后，可以对我说："
+            placeholder="告诉我你想学什么，小顾问来帮你规划~"
             :isLoading="isSendingMessage"
+            :disabled="!isSkillConfirmed"
             @sendMessage="handleSendMessage"
             @cancel="cancelSendMessage"
           >
             <!-- AI消息（技能列表加载完成后显示） -->
             <div v-if="!isLoading && skillOptions.length > 0" class="message ai-message">
               <div class="message-bubble">
-                <p>和我聊聊可以帮你找到心仪的技能哦：</p>
+                <p>确认一个技能之后，可以对我说：</p>
                 <ul class="suggestions">
-                  <li>"我想学HTML"</li>
-                  <li>"我想设计一个好看的页面"</li>
-                  <li>"我在逻辑处理上有点兴趣"</li>
+                  <li>"帮我生成学习规划"（生成后才会同步到个人主页）</li>
+                  <li>"帮我出一个基础题"</li>
+                  <li>"这个技能是干什么的"</li>
                 </ul>
               </div>
             </div>
@@ -51,14 +52,14 @@
             <!-- 加载状态（AI思考中） -->
             <div v-if="isLoading" class="message ai-message">
               <div class="message-bubble">
-                <p>技能小顾问正在整理技能列表...</p>
+                <p>小顾问正在整理技能列表，稍等一下哦~</p>
               </div>
             </div>
 
             <!-- 对话记录 -->
             <div v-for="(record, idx) in chatRecords" :key="idx" class="chat-record">
               <!-- 用户消息 -->
-              <div class="message user-message">
+              <div v-if="record.userMessage" class="message user-message">
                 <div class="message-bubble">
                   <p>{{ record.userMessage }}</p>
                 </div>
@@ -75,7 +76,7 @@
             <div v-if="skillOptions.length === 0 && !isLoading" class="empty-state">
               <div class="empty-icon">📚</div>
               <h3>暂无技能数据</h3>
-              <p>请先从职业选择页面选择感兴趣的岗位</p>
+              <p>小顾问提醒：请先从职业选择页面选择感兴趣的岗位哦~</p>
             </div>
           </AIDialog>
         </section>
@@ -84,9 +85,6 @@
         <section class="right-panel">
           <div class="panel-header">
             <h3 class="panel-title">技能列表</h3>
-            <span class="panel-subtitle" v-if="selectedSkills.length > 0">
-              已选择 {{ selectedSkills.length }} 个技能
-            </span>
           </div>
 
           <!-- 加载状态 -->
@@ -102,12 +100,10 @@
               <div class="card-header" @click="toggleJobCollapse(job.id)">
                 <h4 class="card-title">
                   {{ job.name }}
-                  <span class="job-selected-count-inline"
-                    >({{
-                      getJobSelectedCount(job) > 0
-                        ? '已选' + getJobSelectedCount(job) + '个'
-                        : '未选择'
-                    }})</span
+                  <span
+                    class="job-selected-count-inline"
+                    :class="{ selected: getJobSelectedCount(job) > 0 }"
+                    >({{ getJobSelectedCount(job) > 0 ? '已选择' : '未选择' }})</span
                   >
                 </h4>
                 <div class="card-header-right">
@@ -135,6 +131,17 @@
                   <div class="skill-info">
                     <span class="skill-name">{{ skillItem.name }}</span>
                     <span class="skill-desc">{{ skillItem.description }}</span>
+                    <span v-if="skillItem.difficulty" class="skill-difficulty">
+                      <span class="difficulty-label" :class="'level-' + skillItem.difficulty">
+                        {{
+                          skillItem.difficulty === 1
+                            ? '基础'
+                            : skillItem.difficulty === 2
+                              ? '进阶'
+                              : '复杂'
+                        }}
+                      </span>
+                    </span>
                   </div>
                   <div class="skill-check" v-if="selectedSkills.includes(skillItem.name)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -153,9 +160,13 @@
           </div>
 
           <!-- 底部操作栏 -->
-          <div class="panel-footer" v-if="skillOptions.length > 0">
-            <button class="action-btn" :class="{ disabled: selectedSkills.length === 0 }">
-              生成学习计划
+          <div class="panel-footer" v-if="skillOptions.length > 0 && !isSkillConfirmed">
+            <button
+              class="action-btn"
+              :class="{ disabled: selectedSkills.length === 0 }"
+              @click="confirmSkill"
+            >
+              确认学习目标
             </button>
           </div>
         </section>
@@ -183,6 +194,7 @@ const skillsData = ref<SkillItem[]>([])
 const isLoading = ref(false)
 const selectedJobNames = ref<string[]>([])
 const collapsedJobs = ref<number[]>([])
+const isSkillConfirmed = ref(false)
 
 // 初始化时将所有岗位设为折叠状态
 const initCollapsedJobs = () => {
@@ -211,19 +223,38 @@ const skillOptions = computed(() => {
   return orderedSkills.map((skill, index) => ({
     id: index + 1,
     name: skill.job_name,
-    skillList: skill.skills,
+    skillList: [...skill.skills].sort((a, b) => (a.difficulty || 0) - (b.difficulty || 0)),
     major: skill.major,
     score: skill.score,
   }))
 })
 
-// 切换技能选择
+// 确认技能选择
+const confirmSkill = () => {
+  if (selectedSkills.value.length === 0) return
+  isSkillConfirmed.value = true
+  chatRecords.value.push({
+    userMessage: '',
+    aiReply: `小顾问明白你要学习${selectedSkills.value[0]}啦！一起加油，一起努力~`,
+  })
+  scrollToBottom()
+}
+
+// 切换技能选择（确认前为切换模式，确认后需先取消才能选其他）
 const toggleSkill = (skillItem: string) => {
   const index = selectedSkills.value.indexOf(skillItem)
   if (index > -1) {
-    selectedSkills.value.splice(index, 1)
+    // 取消选择，重置确认状态
+    selectedSkills.value = []
+    isSkillConfirmed.value = false
+  } else if (!isSkillConfirmed.value || selectedSkills.value.length === 0) {
+    selectedSkills.value = [skillItem]
   } else {
-    selectedSkills.value.push(skillItem)
+    chatRecords.value.push({
+      userMessage: '',
+      aiReply: '小顾问提醒您：请先取消已选择的技能，再选择新技能哦~',
+    })
+    scrollToBottom()
   }
 }
 
@@ -412,15 +443,21 @@ const handleSendMessage = async (message: string) => {
   // 创建新的 AbortController
   abortController = new AbortController()
 
-  // 获取岗位名称：优先使用 URL 参数，否则使用 store 中的数据
-  const jobNamesParam = route.query.jobNames as string
-  const storeJobNames = careerStore.selectedJobNames
-  const jobNames = jobNamesParam ? jobNamesParam.split(',') : storeJobNames
+  // 根据选中的技能找到对应的岗位
+  const selectedSkillName = selectedSkills.value[0]
+  const jobWithSkill = skillOptions.value.find((job) =>
+    job.skillList.some((skill) => skill.name === selectedSkillName),
+  )
+  const jobName = jobWithSkill ? jobWithSkill.name : ''
 
   // 调用接口提交用户消息，并添加3秒延迟给后端处理时间
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    const res = await submitUserMessage({ text: message, job_names: jobNames })
+    const res = await submitUserMessage({
+      text: message,
+      job_names: jobName ? [jobName] : [],
+      selected_skill: selectedSkillName,
+    })
     if (res.code === 200 && res.data) {
       // res.data 是 JSON 字符串，需要先解析
       const responseData = JSON.parse(res.data as unknown as string)
@@ -706,9 +743,13 @@ const cancelSendMessage = () => {
 
 .job-selected-count-inline {
   font-size: 0.75rem;
-  color: var(--accent-teal);
+  color: var(--text-secondary);
   font-weight: 600;
   margin-left: 0.5rem;
+}
+
+.job-selected-count-inline.selected {
+  color: #22c55e;
 }
 
 .card-badge {
@@ -781,6 +822,35 @@ const cancelSendMessage = () => {
   -webkit-box-orient: vertical;
   box-orient: vertical;
   overflow: hidden;
+}
+
+.skill-difficulty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.difficulty-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.difficulty-label.level-1 {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.difficulty-label.level-2 {
+  color: #ca8a04;
+  background: rgba(202, 138, 4, 0.15);
+}
+
+.difficulty-label.level-3 {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
 }
 
 .skill-check {

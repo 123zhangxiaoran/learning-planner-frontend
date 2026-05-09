@@ -46,17 +46,17 @@
         <input
           v-model="inputValue"
           type="text"
-          :placeholder="isLoading ? '点击右边可以取消查询' : placeholder"
+          :placeholder="disabled ? '小顾问先等你选择好心仪的技能哦~' : isLoading ? '点击右边可以取消查询' : placeholder"
           class="chat-input"
-          :disabled="isLoading"
-          @keyup.enter="isLoading ? undefined : onSendMessage()"
+          :disabled="isLoading || disabled"
+          @keyup.enter="isLoading || disabled ? undefined : onSendMessage()"
         />
         <span v-if="isLoading" class="loading-hint"><b>➜</b></span>
         <button
           @click="handleButtonClick"
           class="send-button"
-          :class="{ active: inputValue.trim() || isLoading, loading: isLoading }"
-          :disabled="!isLoading && !inputValue.trim()"
+          :class="{ active: (inputValue.trim() || isLoading) && !disabled, loading: isLoading }"
+          :disabled="disabled || (!isLoading && !inputValue.trim())"
         >
           <!-- 发送图标 -->
           <svg
@@ -95,6 +95,7 @@ interface Props {
   userMessage?: string
   placeholder?: string
   isLoading?: boolean
+  disabled?: boolean
 }
 
 // 默认Props值
@@ -109,6 +110,7 @@ const props = withDefaults(defineProps<Props>(), {
   userMessage: '',
   placeholder: '请输入你的问题...',
   isLoading: false,
+  disabled: false,
 })
 
 const emit = defineEmits<{

@@ -37,13 +37,14 @@ export interface RAGSearchRequest {
   jobs: string[]
   userId?: number
   jobToken?: string // 保存岗位后返回的凭证
-  newData?: boolean // 是否首次调用（从Career保存岗位后首次调用searchSkill）
+  newData?: boolean // 是否首次调用
 }
 
 // 技能详情
 export interface SkillDetail {
   name: string
   description: string
+  difficulty?: number
 }
 
 // RAG 搜索返回的技能项
@@ -63,6 +64,7 @@ export interface RAGSearchResponse {
 export interface SubmitUserMessageRequest {
   text: string
   job_names?: string[]
+  selected_skill?: string
 }
 
 // 提交用户消息响应（后端返回的是JSON字符串）
