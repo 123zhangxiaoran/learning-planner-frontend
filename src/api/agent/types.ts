@@ -60,16 +60,21 @@ export interface RAGSearchResponse {
   skills: SkillItem[]
 }
 
-// 提交用户消息请求
-export interface SubmitUserMessageRequest {
+// 回答用户问题请求
+export interface AnswerUserQuestionRequest {
   text: string
   job_names?: string[]
   selected_skill?: string
 }
 
-// 提交用户消息响应（后端返回的是JSON字符串）
-export interface SubmitUserMessageResponse {
-  best_match_skill: string
+// 回答用户问题响应（后端返回的是JSON字符串）
+export interface AnswerUserQuestionResponse {
+  type: string // 题目类型，如 "true_false" / "choice" 等
+  stem: string // 题目题干
+  options: string[] // 选项列表
+  answer: string // 正确答案
+  explanation: string // 答案解析
+  code_snippet: string // 代码片段（如果有）
 }
 
 // 获取用户岗位数据响应

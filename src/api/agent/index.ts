@@ -5,8 +5,8 @@ import type {
   CareerRecommendResponse,
   RAGSearchRequest,
   RAGSearchResponse,
-  SubmitUserMessageRequest,
-  SubmitUserMessageResponse,
+  AnswerUserQuestionRequest,
+  AnswerUserQuestionResponse,
   GetUserJobDataResponse,
   SaveJobRequest,
 } from './types'
@@ -49,14 +49,16 @@ export function saveSelectedJobs(
   })
 }
 
-// 提交用户发送的消息
-export function submitUserMessage(
-  data: SubmitUserMessageRequest,
-): Promise<ApiResponse<SubmitUserMessageResponse>> {
-  return request<SubmitUserMessageResponse>({
+// 回答用户问题
+export function answerUserQuestion(
+  data: AnswerUserQuestionRequest,
+  signal?: AbortSignal,
+): Promise<ApiResponse<AnswerUserQuestionResponse>> {
+  return request<AnswerUserQuestionResponse>({
     url: '/agent/submitMessage',
     method: 'post',
     data,
+    signal,
   })
 }
 

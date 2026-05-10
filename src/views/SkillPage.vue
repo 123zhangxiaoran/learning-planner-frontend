@@ -33,7 +33,8 @@
             highlightText="确认一个技能后，可以对我说："
             placeholder="告诉我你想学什么，小顾问来帮你规划~"
             :isLoading="isSendingMessage"
-            :disabled="!isSkillConfirmed"
+            :disabled="!isSkillConfirmed || hasUnansweredQuestion"
+            :waitingForAnswer="hasUnansweredQuestion"
             @sendMessage="handleSendMessage"
             @cancel="cancelSendMessage"
           >
@@ -65,9 +66,104 @@
                 </div>
               </div>
               <!-- AI 回复 -->
-              <div v-if="record.aiReply" class="message ai-message">
+              <div v-if="record.aiReply || record.stem" class="message ai-message">
                 <div class="message-bubble">
-                  <p>{{ record.aiReply }}</p>
+                  <!-- 普通文本回复 -->
+                  <pre
+                    v-if="record.aiReply && !record.stem"
+                    style="white-space: pre-wrap; margin: 0; font-family: inherit"
+                    >{{ record.aiReply }}</pre
+                  >
+                  <!-- 题目格式回复 -->
+                  <div v-if="record.stem" class="question-content">
+                    <div class="question-type">{{ record.type }}</div>
+                    <div class="question-stem">{{ record.stem }}</div>
+                    <!-- 代码片段（如果有）-->
+                    <pre v-if="record.codeSnippet" class="code-snippet">{{
+                      record.codeSnippet
+                    }}</pre>
+                    <!-- 填空题显示输入框 -->
+                    <div v-if="record.type === '填空题'" class="fill-blank-input">
+                      <template v-if="record.selectedOption === undefined">
+                        <input
+                          v-model="record.fillAnswer"
+                          type="text"
+                          placeholder="请输入答案"
+                          @keyup.enter="submitFillAnswer(record)"
+                        />
+                        <button class="confirm-btn" @click="submitFillAnswer(record)">确认</button>
+                      </template>
+                      <span
+                        v-else
+                        class="submitted-answer"
+                        :class="{
+                          correct: record.isCorrect === true,
+                          wrong: record.isCorrect === false
+                        }"
+                      >
+                        答案：{{ record.fillAnswer }}
+                      </span>
+                    </div>
+                    <!-- 分析题显示输入框 -->
+                    <div v-else-if="record.type === '分析题'" class="fill-blank-input">
+                      <template v-if="record.selectedOption === undefined">
+                        <input
+                          v-model="record.fillAnswer"
+                          type="text"
+                          placeholder="请输入答案"
+                          @keyup.enter="submitFillAnswer(record)"
+                        />
+                        <button class="confirm-btn" @click="submitFillAnswer(record)">确认</button>
+                      </template>
+                      <span
+                        v-else
+                        class="submitted-answer"
+                        :class="{
+                          correct: record.isCorrect === true,
+                          wrong: record.isCorrect === false
+                        }"
+                      >
+                        答案：{{ record.fillAnswer }}
+                      </span>
+                    </div>
+                    <!-- 其他题型显示选项 -->
+                    <div
+                      v-else-if="record.options && record.options.length > 0"
+                      class="question-options"
+                      :class="'options-count-' + record.options.length"
+                    >
+                      <template v-for="(opt, idx) in record.options" :key="idx">
+                        <button
+                          v-if="record.selectedOption === undefined"
+                          class="option-btn"
+                          @click="handleOptionClick(record, idx)"
+                        >
+                          {{ opt }}
+                        </button>
+                        <span
+                          v-else
+                          class="option-text"
+                          :class="{
+                            selected: record.selectedOption === idx,
+                            correct: record.selectedOption === idx && record.isCorrect === true,
+                            wrong: record.selectedOption === idx && record.isCorrect === false
+                          }"
+                        >
+                          {{ opt }}
+                        </span>
+                      </template>
+                    </div>
+                    <!-- 答案解析（用户回答后显示）-->
+                    <div v-if="record.selectedOption !== undefined && record.explanation" class="answer-explanation">
+                      <div class="explanation-title" :class="{ correct: record.isCorrect === true, wrong: record.isCorrect === false }">
+                        {{ record.isCorrect === true ? '✓ 回答正确' : record.isCorrect === false ? '✗ 回答错误' : '' }}
+                      </div>
+                      <div class="explanation-content">
+                        <div class="correct-answer"><span class="label-text">正确答案：</span>{{ record.correctAnswer }}</div>
+                        <div class="explanation-text">{{ record.explanation }}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -182,7 +278,7 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { usePlayerStore } from '@/stores/user'
-import { saveJobAndSearchRAG, submitUserMessage, getUserJobData } from '@/api/agent'
+import { saveJobAndSearchRAG, answerUserQuestion, getUserJobData } from '@/api/agent'
 import type { SkillItem } from '@/api/agent/types'
 
 const route = useRoute()
@@ -235,7 +331,7 @@ const confirmSkill = () => {
   isSkillConfirmed.value = true
   chatRecords.value.push({
     userMessage: '',
-    aiReply: `小顾问明白你要学习${selectedSkills.value[0]}啦！一起加油，一起努力~`,
+    aiReply: `小顾问明白你要学习${selectedSkills.value[0]}啦！一起加油~`,
   })
   scrollToBottom()
 }
@@ -256,33 +352,6 @@ const toggleSkill = (skillItem: string) => {
     })
     scrollToBottom()
   }
-}
-
-// 展开岗位并定位到指定技能
-const expandAndScrollToSkill = (skillName: string) => {
-  nextTick(() => {
-    // 找到技能所在的岗位
-    const jobWithSkill = skillOptions.value.find((job) =>
-      job.skillList.some((skill) => skill.name === skillName),
-    )
-    if (!jobWithSkill) return
-
-    // 如果岗位是折叠的，先展开
-    if (collapsedJobs.value.includes(jobWithSkill.id)) {
-      toggleJobCollapse(jobWithSkill.id)
-    }
-
-    // 等待展开动画完成后滚动到技能位置
-    setTimeout(() => {
-      const skillElements = document.querySelectorAll('.card-skill-item') as NodeListOf<HTMLElement>
-      skillElements.forEach((el) => {
-        const nameEl = el.querySelector('.skill-name')
-        if (nameEl && nameEl.textContent === skillName) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      })
-    }, 100)
-  })
 }
 
 // 切换岗位折叠状态
@@ -415,9 +484,30 @@ onMounted(async () => {
 interface ChatRecord {
   userMessage: string
   aiReply?: string
+  type?: string // 题目类型
+  stem?: string // 题干
+  options?: string[] // 选项列表
+  selectedOption?: number // 选中的选项索引
+  fillAnswer?: string // 填空题答案
+  codeSnippet?: string // 代码片段
+  correctAnswer?: string // 正确答案
+  explanation?: string // 答案解析
+  isCorrect?: boolean // 用户是否答对
 }
 const chatRecords = ref<ChatRecord[]>([])
 const isSendingMessage = ref(false)
+
+// 判断是否有未回答的题目（最后一条记录是题目且用户未回答）
+const hasUnansweredQuestion = computed(() => {
+  if (chatRecords.value.length === 0) return false
+  const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+  if (!lastRecord) return false
+  // 如果最后一条记录包含题目（有stem字段）且用户未选择答案（selectedOption为undefined）
+  if (lastRecord.stem && lastRecord.selectedOption === undefined) {
+    return true
+  }
+  return false
+})
 
 // AbortController 用于取消请求
 let abortController: AbortController | null = null
@@ -453,48 +543,34 @@ const handleSendMessage = async (message: string) => {
   // 调用接口提交用户消息，并添加3秒延迟给后端处理时间
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    const res = await submitUserMessage({
+    const res = await answerUserQuestion({
       text: message,
       job_names: jobName ? [jobName] : [],
       selected_skill: selectedSkillName,
-    })
+    }, abortController?.signal)
     if (res.code === 200 && res.data) {
       // res.data 是 JSON 字符串，需要先解析
       const responseData = JSON.parse(res.data as unknown as string)
-      const skillName = responseData.best_match_skill
-      if (skillName) {
-        // 更新最后一条对话记录的 AI 回复
-        const lastRecord = chatRecords.value[chatRecords.value.length - 1]
-        if (lastRecord) {
-          // 随机选择一句回复
-          const replies = [
-            `你想要学的是${skillName}吧，我帮你选中啦！`,
-            `${skillName}真的很适合你，我帮你拿下它！`,
-            `经过我的思考，${skillName}很符合你的期望，我帮你选中它。`,
-            `我觉得${skillName}特别适合你，已经帮你选好了！`,
-            `选${skillName}准没错，我帮你点上啦！`,
-          ]
-          lastRecord.aiReply = replies[Math.floor(Math.random() * replies.length)]
-          scrollToBottom()
-          // 自动选中技能，并展开定位
-          if (!selectedSkills.value.includes(skillName)) {
-            selectedSkills.value.push(skillName)
-            expandAndScrollToSkill(skillName)
-          }
+      // 解析内层 data（题目内容）
+      const questionData = JSON.parse(responseData.data)
+      // 更新最后一条对话记录的 AI 回复
+      const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+      if (lastRecord) {
+        const typeMap: Record<string, string> = {
+          true_false: '判断题',
+          choice: '选择题',
+          filling: '填空题',
+          analysis: '分析题',
         }
-      } else {
-        // 没有匹配到技能，给出友好提示
-        const lastRecord = chatRecords.value[chatRecords.value.length - 1]
-        if (lastRecord) {
-          const noMatchReplies = [
-            `嗯...你说的这个好像和你选的岗位不太搭哦，自己看看有没有心仪的？`,
-            `你这个问题和选的岗位没太对上，要不自己挑选一个技能？`,
-            `你选的岗位里没有很匹配这个的，不妨自己选一个？`,
-            `这个问题和你的岗位方向不太一致，看看有没有自己感兴趣的技能？`,
-          ]
-          lastRecord.aiReply = noMatchReplies[Math.floor(Math.random() * noMatchReplies.length)]
-          scrollToBottom()
-        }
+        const typeText = typeMap[questionData.type] || questionData.type
+        // 存储题目数据
+        lastRecord.type = typeText
+        lastRecord.stem = questionData.stem
+        lastRecord.options = questionData.options || []
+        lastRecord.codeSnippet = questionData.code_snippet
+        lastRecord.correctAnswer = questionData.answer
+        lastRecord.explanation = questionData.explanation
+        scrollToBottom()
       }
     }
   } catch (error: unknown) {
@@ -509,6 +585,29 @@ const handleSendMessage = async (message: string) => {
   } finally {
     isSendingMessage.value = false
     abortController = null
+  }
+}
+
+// 处理选项点击
+const handleOptionClick = (record: ChatRecord, optionIndex: number) => {
+  record.selectedOption = optionIndex
+  // 判断答案是否正确（选项索引从0开始，正确答案可能是1,2,3,4或A,B,C,D格式）
+  const correctAnswer = record.correctAnswer?.trim()
+  if (correctAnswer) {
+    // 尝试将正确答案转换为索引（A=0, B=1, C=2, D=3）
+    const correctIndex = correctAnswer.charCodeAt(0) - 'A'.charCodeAt(0)
+    record.isCorrect = optionIndex === correctIndex
+  }
+}
+
+// 提交填空题答案
+const submitFillAnswer = (record: ChatRecord) => {
+  if (record.fillAnswer && record.fillAnswer.trim()) {
+    record.selectedOption = 0 // 标记为已提交
+    // 判断答案是否正确（不区分大小写，去除前后空格）
+    const userAnswer = record.fillAnswer.trim().toLowerCase()
+    const correctAnswer = record.correctAnswer?.trim().toLowerCase()
+    record.isCorrect = userAnswer === correctAnswer
   }
 }
 
@@ -1723,5 +1822,192 @@ const cancelSendMessage = () => {
     padding: 0.6rem 1rem;
     font-size: 0.85rem;
   }
+}
+
+/* 题目内容样式 */
+.question-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.question-type {
+  font-size: 0.9rem;
+  color: var(--accent-color, #4ecdc4);
+  font-weight: 600;
+}
+
+.question-stem {
+  font-size: 1rem;
+  line-height: 1.6;
+  text-indent: 2em;
+}
+
+.question-options {
+  display: grid;
+  gap: 8px 24px;
+  margin-top: 8px;
+}
+
+/* 所有选项：一行两列 */
+.question-options {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.option-btn {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: center;
+  padding: 8px 16px;
+  border: 1px solid var(--accent-color, #4ecdc4);
+  border-radius: 8px;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.option-btn:hover,
+.option-btn.selected {
+  background: var(--accent-color, #4ecdc4);
+}
+
+.option-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: center;
+  padding: 8px 16px;
+}
+
+.option-text.selected {
+  color: var(--accent-color, #4ecdc4);
+  font-weight: 600;
+}
+
+/* 填空题输入框样式 */
+.fill-blank-input {
+  margin-top: 12px;
+}
+
+.fill-blank-input input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-color, #4ecdc4);
+  border-radius: 8px;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.fill-blank-input input::placeholder {
+  color: rgba(26, 26, 26, 0.5);
+}
+
+.fill-blank-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.confirm-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--accent-color, #4ecdc4);
+  border-radius: 8px;
+  background: var(--accent-color, #4ecdc4);
+  color: #1a1a1a;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.confirm-btn:hover {
+  opacity: 0.8;
+}
+
+.submitted-answer {
+  display: block;
+  padding: 10px 16px;
+  color: var(--accent-color, #4ecdc4);
+  font-weight: 600;
+}
+
+.submitted-answer.correct {
+  color: #4caf50;
+}
+
+.submitted-answer.wrong {
+  color: #f44336;
+}
+
+/* 选项样式 */
+.option-text.correct {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.option-text.wrong {
+  color: #f44336;
+  font-weight: 600;
+}
+
+/* 答案解析样式 */
+.answer-explanation {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border-left: 4px solid var(--accent-color, #4ecdc4);
+}
+
+.answer-explanation .explanation-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.answer-explanation .explanation-title.correct {
+  color: #4caf50;
+}
+
+.answer-explanation .explanation-title.wrong {
+  color: #f44336;
+}
+
+.answer-explanation .explanation-content {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.answer-explanation .correct-answer {
+  color: #1a1a1a;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.answer-explanation .explanation-text {
+  color: #1a1a1a;
+  text-indent: 2em;
+  line-height: 1.8;
+}
+
+.answer-explanation .label-text {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* 代码片段样式 */
+.code-snippet {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #2d2d2d;
+  border-radius: 8px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9rem;
+  color: #f8f8f2;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 </style>

@@ -46,7 +46,7 @@
         <input
           v-model="inputValue"
           type="text"
-          :placeholder="disabled ? '小顾问先等你选择好心仪的技能哦~' : isLoading ? '点击右边可以取消查询' : placeholder"
+          :placeholder="waitingForAnswer ? '请先回答上面的题目哦~' : disabled ? '小顾问先等你选择好心仪的技能哦~' : isLoading ? '点击右边可以取消查询' : placeholder"
           class="chat-input"
           :disabled="isLoading || disabled"
           @keyup.enter="isLoading || disabled ? undefined : onSendMessage()"
@@ -96,6 +96,7 @@ interface Props {
   placeholder?: string
   isLoading?: boolean
   disabled?: boolean
+  waitingForAnswer?: boolean
 }
 
 // 默认Props值
@@ -111,6 +112,7 @@ const props = withDefaults(defineProps<Props>(), {
   placeholder: '请输入你的问题...',
   isLoading: false,
   disabled: false,
+  waitingForAnswer: false,
 })
 
 const emit = defineEmits<{
