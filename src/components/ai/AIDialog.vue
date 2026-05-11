@@ -2,7 +2,7 @@
   <!-- AI对话框组件 -->
   <div class="ai-dialog-section">
     <!-- 标题区域 -->
-    <div class="section-header">
+    <div v-if="!hideHeader" class="section-header">
       <div class="header-left">
         <div class="header-badge">{{ titleBadge }}</div>
         <h1 class="section-title">{{ title }}</h1>
@@ -97,6 +97,7 @@ interface Props {
   isLoading?: boolean
   disabled?: boolean
   waitingForAnswer?: boolean
+  hideHeader?: boolean
 }
 
 // 默认Props值
@@ -113,6 +114,7 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   disabled: false,
   waitingForAnswer: false,
+  hideHeader: false,
 })
 
 const emit = defineEmits<{
@@ -213,6 +215,16 @@ const handleButtonClick = () => {
   padding: 2rem;
   margin-bottom: 2rem;
   min-height: 400px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 当隐藏头部时，让容器占满整个高度 */
+.ai-dialog-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* ========= 消息样式 ========= */

@@ -30,11 +30,12 @@
             titleBadge="AI小顾问"
             title="技能学习助手"
             subtitle="我是你的AI学习小顾问，帮你规划成长路径"
-            highlightText="确认一个技能后，可以对我说："
+            highlightText=""
             placeholder="告诉我你想学什么，小顾问来帮你规划~"
             :isLoading="isSendingMessage"
             :disabled="!isSkillConfirmed || hasUnansweredQuestion"
             :waitingForAnswer="hasUnansweredQuestion"
+            :hideHeader="hasEverConfirmed"
             @sendMessage="handleSendMessage"
             @cancel="cancelSendMessage"
           >
@@ -98,7 +99,7 @@
                         class="submitted-answer"
                         :class="{
                           correct: record.isCorrect === true,
-                          wrong: record.isCorrect === false
+                          wrong: record.isCorrect === false,
                         }"
                       >
                         答案：{{ record.fillAnswer }}
@@ -120,7 +121,7 @@
                         class="submitted-answer"
                         :class="{
                           correct: record.isCorrect === true,
-                          wrong: record.isCorrect === false
+                          wrong: record.isCorrect === false,
                         }"
                       >
                         答案：{{ record.fillAnswer }}
@@ -146,7 +147,7 @@
                           :class="{
                             selected: record.selectedOption === idx,
                             correct: record.selectedOption === idx && record.isCorrect === true,
-                            wrong: record.selectedOption === idx && record.isCorrect === false
+                            wrong: record.selectedOption === idx && record.isCorrect === false,
                           }"
                         >
                           {{ opt }}
@@ -154,12 +155,29 @@
                       </template>
                     </div>
                     <!-- 答案解析（用户回答后显示）-->
-                    <div v-if="record.selectedOption !== undefined && record.explanation" class="answer-explanation">
-                      <div class="explanation-title" :class="{ correct: record.isCorrect === true, wrong: record.isCorrect === false }">
-                        {{ record.isCorrect === true ? '✓ 回答正确' : record.isCorrect === false ? '✗ 回答错误' : '' }}
+                    <div
+                      v-if="record.selectedOption !== undefined && record.explanation"
+                      class="answer-explanation"
+                    >
+                      <div
+                        class="explanation-title"
+                        :class="{
+                          correct: record.isCorrect === true,
+                          wrong: record.isCorrect === false,
+                        }"
+                      >
+                        {{
+                          record.isCorrect === true
+                            ? '✓ 回答正确'
+                            : record.isCorrect === false
+                              ? '✗ 回答错误'
+                              : ''
+                        }}
                       </div>
                       <div class="explanation-content">
-                        <div class="correct-answer"><span class="label-text">正确答案：</span>{{ record.correctAnswer }}</div>
+                        <div class="correct-answer">
+                          <span class="label-text">正确答案：</span>{{ record.correctAnswer }}
+                        </div>
                         <div class="explanation-text">{{ record.explanation }}</div>
                       </div>
                     </div>
@@ -291,6 +309,7 @@ const isLoading = ref(false)
 const selectedJobNames = ref<string[]>([])
 const collapsedJobs = ref<number[]>([])
 const isSkillConfirmed = ref(false)
+const hasEverConfirmed = ref(false)
 
 // 初始化时将所有岗位设为折叠状态
 const initCollapsedJobs = () => {
@@ -329,6 +348,7 @@ const skillOptions = computed(() => {
 const confirmSkill = () => {
   if (selectedSkills.value.length === 0) return
   isSkillConfirmed.value = true
+  hasEverConfirmed.value = true
   chatRecords.value.push({
     userMessage: '',
     aiReply: `小顾问明白你要学习${selectedSkills.value[0]}啦！一起加油~`,
@@ -340,7 +360,7 @@ const confirmSkill = () => {
 const toggleSkill = (skillItem: string) => {
   const index = selectedSkills.value.indexOf(skillItem)
   if (index > -1) {
-    // 取消选择，重置确认状态
+    // 取消选择，重置确认状态（但头部保持隐藏）
     selectedSkills.value = []
     isSkillConfirmed.value = false
   } else if (!isSkillConfirmed.value || selectedSkills.value.length === 0) {
@@ -543,33 +563,44 @@ const handleSendMessage = async (message: string) => {
   // 调用接口提交用户消息，并添加3秒延迟给后端处理时间
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    const res = await answerUserQuestion({
-      text: message,
-      job_names: jobName ? [jobName] : [],
-      selected_skill: selectedSkillName,
-    }, abortController?.signal)
+    const res = await answerUserQuestion(
+      {
+        text: message,
+        job_names: jobName ? [jobName] : [],
+        selected_skill: selectedSkillName,
+      },
+      abortController?.signal,
+    )
     if (res.code === 200 && res.data) {
       // res.data 是 JSON 字符串，需要先解析
       const responseData = JSON.parse(res.data as unknown as string)
       // 解析内层 data（题目内容）
-      const questionData = JSON.parse(responseData.data)
+      const innerData = JSON.parse(responseData.data)
       // 更新最后一条对话记录的 AI 回复
       const lastRecord = chatRecords.value[chatRecords.value.length - 1]
       if (lastRecord) {
-        const typeMap: Record<string, string> = {
-          true_false: '判断题',
-          choice: '选择题',
-          filling: '填空题',
-          analysis: '分析题',
+        // 根据 tool 字段判断返回类型
+        const toolType = innerData.tool
+        if (toolType === 'chat') {
+          // 普通聊天回复
+          lastRecord.aiReply = innerData.answer || ''
+        } else if (toolType === 'generate_quiz') {
+          // 题目类型，需要交互
+          const typeMap: Record<string, string> = {
+            true_false: '判断题',
+            choice: '选择题',
+            filling: '填空题',
+            analysis: '分析题',
+          }
+          const typeText = typeMap[innerData.type] || innerData.type
+          // 存储题目数据
+          lastRecord.type = typeText
+          lastRecord.stem = innerData.stem
+          lastRecord.options = innerData.options || []
+          lastRecord.codeSnippet = innerData.code_snippet
+          lastRecord.correctAnswer = innerData.answer
+          lastRecord.explanation = innerData.explanation
         }
-        const typeText = typeMap[questionData.type] || questionData.type
-        // 存储题目数据
-        lastRecord.type = typeText
-        lastRecord.stem = questionData.stem
-        lastRecord.options = questionData.options || []
-        lastRecord.codeSnippet = questionData.code_snippet
-        lastRecord.correctAnswer = questionData.answer
-        lastRecord.explanation = questionData.explanation
         scrollToBottom()
       }
     }
