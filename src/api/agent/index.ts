@@ -9,6 +9,7 @@ import type {
   AnswerUserQuestionResponse,
   GetUserJobDataResponse,
   SaveJobRequest,
+  FetchSkillKnowledgePointsResponse,
 } from './types'
 
 export function sendChatMessage(
@@ -67,5 +68,17 @@ export function getUserJobData(userId: number): Promise<ApiResponse<GetUserJobDa
   return request<GetUserJobDataResponse>({
     url: `/agent/userJobData/${userId}`,
     method: 'get',
+  })
+}
+
+// 获取技能对应的知识点
+export function fetchSkillKnowledgePoints(
+  selectedSkill: string,
+  jobName: string,
+): Promise<ApiResponse<FetchSkillKnowledgePointsResponse>> {
+  return request<FetchSkillKnowledgePointsResponse>({
+    url: '/agent/fetchSkillKnowledgePoints',
+    method: 'post',
+    data: { job_names: jobName, selected_skill: selectedSkill },
   })
 }

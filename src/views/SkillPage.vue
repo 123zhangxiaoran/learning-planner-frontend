@@ -42,11 +42,12 @@
             <!-- AI消息（技能列表加载完成后显示） -->
             <div v-if="!isLoading && skillOptions.length > 0" class="message ai-message">
               <div class="message-bubble">
-                <p>确认一个技能之后，可以对我说：</p>
+                <p>确认一个技能之后生成学习规划。</p>
+                <p>生成之后可以和我说：</p>
                 <ul class="suggestions">
-                  <li>"帮我生成学习规划"（生成后才会同步到个人主页）</li>
-                  <li>"帮我出一个基础题"</li>
-                  <li>"这个技能是干什么的"</li>
+                  <li>"你好啊，你叫什么名字"</li>
+                  <li>"帮我出一个基础题的选择题"</li>
+                  <li>"这个知识点不太懂，帮我生成讲解视频"</li>
                 </ul>
               </div>
             </div>
@@ -71,13 +72,79 @@
                 <div class="message-bubble">
                   <!-- 普通文本回复 -->
                   <pre
-                    v-if="record.aiReply && !record.stem"
+                    v-if="record.aiReply && !record.stem && !record.options?.length"
+                    :class="{ 'wave-animation': record.aiReply.endsWith('....') }"
                     style="white-space: pre-wrap; margin: 0; font-family: inherit"
-                    >{{ record.aiReply }}</pre
-                  >
-                  <!-- 题目格式回复 -->
+                  ><span v-if="record.aiReply.endsWith('....')" :key="waveKey" @animationend="onDotAnimationEnd($event)">{{ splitWaveText(record.aiReply).prefix }}<span v-for="d in splitWaveText(record.aiReply).dots" :key="d.index" class="wave-char" :style="{ animationDelay: d.delay }">{{ d.char }}</span></span><span v-else>{{ record.aiReply }}</span></pre>
+                  <!-- AI文本 + 选项（没有stem时） -->
+                  <div v-if="record.aiReply && record.options?.length" class="ai-with-options">
+                    <div
+                      :class="{
+                        'ai-text': true,
+                        'wave-animation': record.aiReply.endsWith('....'),
+                      }"
+                    >
+                      <span
+                        v-if="record.aiReply.endsWith('....')"
+                        :key="waveKey"
+                        @animationend="onDotAnimationEnd($event)"
+                        >{{ splitWaveText(record.aiReply).prefix
+                        }}<span
+                          v-for="d in splitWaveText(record.aiReply).dots"
+                          :key="d.index"
+                          class="wave-char"
+                          :style="{ animationDelay: d.delay }"
+                          >{{ d.char }}</span
+                        ></span
+                      ><span v-else>{{ record.aiReply }}</span>
+                    </div>
+                    <div class="question-options options-count-2">
+                      <template v-for="(opt, idx) in record.options" :key="idx">
+                        <button
+                          v-if="record.selectedOption === undefined"
+                          class="option-btn"
+                          @click="handleOptionClick(record, idx)"
+                        >
+                          {{ opt }}
+                        </button>
+                        <span
+                          v-else
+                          class="option-text"
+                          :class="{
+                            selected: record.selectedOption === idx,
+                            correct: record.selectedOption === idx && record.isCorrect === true,
+                            wrong: record.selectedOption === idx && record.isCorrect === false,
+                          }"
+                        >
+                          {{ opt }}
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- 题目格式回复（有stem时显示） -->
                   <div v-if="record.stem" class="question-content">
-                    <div class="question-type">{{ record.type }}</div>
+                    <div
+                      v-if="record.aiReply"
+                      :class="{
+                        'ai-text': true,
+                        'wave-animation': record.aiReply.endsWith('....'),
+                      }"
+                    >
+                      <span
+                        v-if="record.aiReply.endsWith('....')"
+                        :key="waveKey"
+                        @animationend="onDotAnimationEnd($event)"
+                        >{{ splitWaveText(record.aiReply).prefix
+                        }}<span
+                          v-for="d in splitWaveText(record.aiReply).dots"
+                          :key="d.index"
+                          class="wave-char"
+                          :style="{ animationDelay: d.delay }"
+                          >{{ d.char }}</span
+                        ></span
+                      ><span v-else>{{ record.aiReply }}</span>
+                    </div>
+                    <div v-if="record.type" class="question-type">{{ record.type }}</div>
                     <div class="question-stem">{{ record.stem }}</div>
                     <!-- 代码片段（如果有）-->
                     <pre v-if="record.codeSnippet" class="code-snippet">{{
@@ -204,7 +271,18 @@
           <!-- 加载状态 -->
           <div v-if="isLoading" class="right-loading-state">
             <div class="loading-spinner"></div>
-            <p>正在加载技能数据...</p>
+            <p class="wave-animation">
+              <span :key="waveKey" @animationend="onDotAnimationEnd($event)">
+                {{ splitWaveText('正在加载技能数据....').prefix
+                }}<span
+                  v-for="d in splitWaveText('正在加载技能数据....').dots"
+                  :key="d.index"
+                  class="wave-char"
+                  :style="{ animationDelay: d.delay }"
+                  >{{ d.char }}</span
+                >
+              </span>
+            </p>
           </div>
 
           <!-- 技能卡片列表 -->
@@ -292,11 +370,16 @@
 <script setup lang="ts">
 import NavBar from '@/components/layout/NavBar.vue'
 import AIDialog from '@/components/ai/AIDialog.vue'
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { usePlayerStore } from '@/stores/user'
-import { saveJobAndSearchRAG, answerUserQuestion, getUserJobData } from '@/api/agent'
+import {
+  saveJobAndSearchRAG,
+  answerUserQuestion,
+  getUserJobData,
+  fetchSkillKnowledgePoints,
+} from '@/api/agent'
 import type { SkillItem } from '@/api/agent/types'
 
 const route = useRoute()
@@ -345,13 +428,34 @@ const skillOptions = computed(() => {
 })
 
 // 确认技能选择
-const confirmSkill = () => {
+const confirmSkill = async () => {
   if (selectedSkills.value.length === 0) return
+
+  // 根据选中的技能找到对应的岗位
+  const selectedSkillName = selectedSkills.value[0]!
+  const jobWithSkill = skillOptions.value.find((job) =>
+    job.skillList.some((skill) => skill.name === selectedSkillName),
+  )
+  const jobName = jobWithSkill ? jobWithSkill.name : ''
+
+  // 调用接口获取技能对应的知识点
+  const res = await fetchSkillKnowledgePoints(selectedSkillName, jobName)
+  if (res.code === 200 && res.data) {
+    const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+    if (responseData.skill_name && responseData.dimensions) {
+      careerStore.setSkillKnowledge({
+        skill_name: responseData.skill_name,
+        dimensions: responseData.dimensions,
+      })
+    }
+  }
+
   isSkillConfirmed.value = true
   hasEverConfirmed.value = true
   chatRecords.value.push({
     userMessage: '',
-    aiReply: `小顾问明白你要学习${selectedSkills.value[0]}啦！一起加油~`,
+    aiReply: '小顾问帮你评估知识战力',
+    options: ['纯小白，完全不懂', '有点基础，来考考我吧'],
   })
   scrollToBottom()
 }
@@ -363,6 +467,8 @@ const toggleSkill = (skillItem: string) => {
     // 取消选择，重置确认状态（但头部保持隐藏）
     selectedSkills.value = []
     isSkillConfirmed.value = false
+    // 清空聊天记录
+    chatRecords.value = []
   } else if (!isSkillConfirmed.value || selectedSkills.value.length === 0) {
     selectedSkills.value = [skillItem]
   } else {
@@ -500,6 +606,30 @@ onMounted(async () => {
   }
 })
 
+// 波浪动画循环：监听 animationend，等最后一颗点运行完，延迟0.5秒后再次执行
+const waveKey = ref(0)
+let waveTimer: ReturnType<typeof setTimeout> | null = null
+let dotEndCount = 0
+const DOT_COUNT = 4
+
+const onDotAnimationEnd = (e: AnimationEvent) => {
+  if (!(e.target as HTMLElement).classList.contains('wave-char')) return
+  dotEndCount++
+  if (dotEndCount >= DOT_COUNT) {
+    dotEndCount = 0
+    waveTimer = setTimeout(() => {
+      waveKey.value++
+    }, 500)
+  }
+}
+
+onUnmounted(() => {
+  if (waveTimer) {
+    clearTimeout(waveTimer)
+    waveTimer = null
+  }
+})
+
 // 对话记录，每个记录包含用户消息和AI回复
 interface ChatRecord {
   userMessage: string
@@ -522,8 +652,12 @@ const hasUnansweredQuestion = computed(() => {
   if (chatRecords.value.length === 0) return false
   const lastRecord = chatRecords.value[chatRecords.value.length - 1]
   if (!lastRecord) return false
-  // 如果最后一条记录包含题目（有stem字段）且用户未选择答案（selectedOption为undefined）
-  if (lastRecord.stem && lastRecord.selectedOption === undefined) {
+  // 如果有选项但用户未选择答案，禁用聊天
+  if (
+    lastRecord.options &&
+    lastRecord.options.length > 0 &&
+    lastRecord.selectedOption === undefined
+  ) {
     return true
   }
   return false
@@ -544,7 +678,7 @@ const scrollToBottom = () => {
 
 const handleSendMessage = async (message: string) => {
   // 添加新的对话记录（包含思考中占位）
-  chatRecords.value.push({ userMessage: message, aiReply: '小顾问思考中...' })
+  chatRecords.value.push({ userMessage: message, aiReply: '小顾问思考中....' })
   isSendingMessage.value = true
 
   // 滚动到底部
@@ -621,13 +755,53 @@ const handleSendMessage = async (message: string) => {
 
 // 处理选项点击
 const handleOptionClick = (record: ChatRecord, optionIndex: number) => {
+  // 点击"纯小白，完全不懂"时，先改内容再重置状态
+  if (record.options?.[optionIndex]?.includes('纯小白')) {
+    const selectedSkillName = selectedSkills.value[0] || '该技能'
+    record.aiReply = `需要小顾问生成${selectedSkillName}的学习路线吗？`
+    record.options = ['是', '否']
+    record.isCorrect = undefined
+    record.selectedOption = undefined // 保持 undefined，让新按钮可点击
+    scrollToBottom()
+    return
+  }
+
+  // 点击"有点基础，略懂一些"时，覆盖为生成中的消息
+  if (record.options?.[optionIndex]?.includes('有点基础')) {
+    record.aiReply = '小顾问正在为你量身准备中....'
+    record.options = []
+    record.stem = ''
+    record.selectedOption = undefined
+    record.isCorrect = undefined
+    scrollToBottom()
+    return
+  }
+
+  // 其他选项正常设置
   record.selectedOption = optionIndex
-  // 判断答案是否正确（选项索引从0开始，正确答案可能是1,2,3,4或A,B,C,D格式）
+  // 判断答案是否正确
   const correctAnswer = record.correctAnswer?.trim()
   if (correctAnswer) {
-    // 尝试将正确答案转换为索引（A=0, B=1, C=2, D=3）
     const correctIndex = correctAnswer.charCodeAt(0) - 'A'.charCodeAt(0)
     record.isCorrect = optionIndex === correctIndex
+  }
+
+  // 点击"否"时，删除当前记录
+  if (record.options?.[optionIndex] === '否') {
+    const index = chatRecords.value.indexOf(record)
+    if (index > -1) {
+      chatRecords.value.splice(index, 1)
+    }
+    scrollToBottom()
+  }
+
+  // 点击"是"时，覆盖为生成中的消息
+  if (record.options?.[optionIndex] === '是') {
+    record.aiReply = '小顾问正在生成中....'
+    record.options = undefined
+    record.selectedOption = undefined
+    record.isCorrect = undefined
+    scrollToBottom()
   }
 }
 
@@ -649,6 +823,20 @@ const cancelSendMessage = () => {
     abortController = null
     isSendingMessage.value = false
   }
+}
+
+// 将文本拆分为前缀文字 + 波浪动画的....四个点
+const splitWaveText = (text: string) => {
+  if (text.endsWith('....')) {
+    const prefix = text.slice(0, -4)
+    const dots = ['.', '.', '.', '.'].map((char, index) => ({
+      char,
+      index,
+      delay: `${index * 0.6}s`,
+    }))
+    return { prefix, dots }
+  }
+  return { prefix: text, dots: [] }
 }
 </script>
 
@@ -1389,7 +1577,7 @@ const cancelSendMessage = () => {
 .decoration-item {
   font-size: 1.5rem;
   opacity: 0.1;
-  animation: float 3s ease-in-out infinite;
+  animation: float 5s ease-in-out infinite;
 }
 
 .decoration-item:nth-child(2) {
@@ -1407,7 +1595,7 @@ const cancelSendMessage = () => {
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-2px);
   }
 }
 
@@ -1863,9 +2051,28 @@ const cancelSendMessage = () => {
 }
 
 .question-type {
-  font-size: 0.9rem;
-  color: var(--accent-color, #4ecdc4);
-  font-weight: 600;
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.ai-text {
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.ai-with-options {
+  margin-top: 8px;
+}
+
+.ai-icon {
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 .question-stem {
@@ -2040,5 +2247,28 @@ const cancelSendMessage = () => {
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* 波浪动画 - 用于AI思考中/生成中等占位文本，提示用户页面未卡死 */
+/* 每个字符依次浮动，形成波浪效果 */
+@keyframes wave-char {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.wave-animation {
+  display: inline-block;
+}
+
+.wave-char {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 1.3em;
+  animation: wave-char 1.4s ease-in-out;
 }
 </style>

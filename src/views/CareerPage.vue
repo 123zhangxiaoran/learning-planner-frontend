@@ -57,7 +57,18 @@
         <!-- AI正在搜索提示 -->
         <div v-if="isSearching" class="message ai-message">
           <div class="message-bubble">
-            <p>职业小顾问在努力搜索中....</p>
+            <p class="wave-animation">
+              <span :key="waveKey" @animationend="onDotAnimationEnd($event)"
+                >{{ splitWaveText('职业小顾问在努力搜索中....').prefix
+                }}<span
+                  v-for="d in splitWaveText('职业小顾问在努力搜索中....').dots"
+                  :key="d.index"
+                  class="wave-char"
+                  :style="{ animationDelay: d.delay }"
+                  >{{ d.char }}</span
+                ></span
+              >
+            </p>
           </div>
         </div>
 
@@ -127,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/layout/NavBar.vue'
 import ChatInput from '@/components/layout/ChatInput.vue'
@@ -280,6 +291,44 @@ const goToSkillPage = () => {
     },
   })
 }
+
+// 波浪动画：将文本拆分为前缀文字 + 波浪动画的....四个点
+const splitWaveText = (text: string) => {
+  if (text.endsWith('....')) {
+    const prefix = text.slice(0, -4)
+    const dots = ['.', '.', '.', '.'].map((char, index) => ({
+      char,
+      index,
+      delay: `${index * 0.6}s`,
+    }))
+    return { prefix, dots }
+  }
+  return { prefix: text, dots: [] }
+}
+
+// 波浪动画循环：监听 animationend，等最后一颗点运行完，延迟0.5秒后再次执行
+const waveKey = ref(0)
+let waveTimer: ReturnType<typeof setTimeout> | null = null
+let dotEndCount = 0
+const DOT_COUNT = 4
+
+const onDotAnimationEnd = (e: AnimationEvent) => {
+  if (!(e.target as HTMLElement).classList.contains('wave-char')) return
+  dotEndCount++
+  if (dotEndCount >= DOT_COUNT) {
+    dotEndCount = 0
+    waveTimer = setTimeout(() => {
+      waveKey.value++
+    }, 500)
+  }
+}
+
+onUnmounted(() => {
+  if (waveTimer) {
+    clearTimeout(waveTimer)
+    waveTimer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -767,5 +816,27 @@ const goToSkillPage = () => {
   .career-item-desc {
     font-size: 0.7rem;
   }
+}
+
+/* ========= 波浪动画 ========= */
+@keyframes wave-char {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.wave-animation {
+  display: inline-block;
+}
+
+.wave-char {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 1.3em;
+  animation: wave-char 1.4s ease-in-out;
 }
 </style>

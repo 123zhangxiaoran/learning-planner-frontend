@@ -4,15 +4,26 @@ import { ref } from 'vue'
 // 存储键名
 const STORAGE_KEY = 'career-store'
 const EXPIRY_KEY = 'career-store-expiry'
+const SKILL_KNOWLEDGE_KEY = 'skill-knowledge-store'
+const SKILL_KNOWLEDGE_EXPIRY_KEY = 'skill-knowledge-expiry'
 
 // 7天的毫秒数
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
+// 1天的毫秒数
+const ONE_DAY = 24 * 60 * 60 * 1000
 
 export interface CareerStorage {
   jobNames: string[] // 选中的岗位名称列表
   timestamp: number // 存储时间戳
   jobToken?: string // 保存岗位后返回的凭证
   hasCalledSaveJob?: boolean // 是否已调用过 saveJob 接口
+}
+
+// 技能知识点存储
+export interface SkillKnowledgeStorage {
+  skill_name: string
+  dimensions: string[]
+  timestamp: number
 }
 
 export const useCareerStore = defineStore('career', () => {
@@ -138,6 +149,71 @@ export const useCareerStore = defineStore('career', () => {
     }
   }
 
+  // 检查技能知识点是否过期
+  const isSkillKnowledgeExpired = (): boolean => {
+    try {
+      const expiry = localStorage.getItem(SKILL_KNOWLEDGE_EXPIRY_KEY)
+      if (!expiry) return true
+      const expiryTime = parseInt(expiry)
+      if (isNaN(expiryTime)) return true
+      return Date.now() > expiryTime
+    } catch {
+      return true
+    }
+  }
+
+  // 技能知识点数据
+  const skillKnowledgeData = ref<SkillKnowledgeStorage | null>(null)
+
+  // 从 localStorage 初始化技能知识点数据
+  const initSkillKnowledgeFromStorage = (): SkillKnowledgeStorage | null => {
+    if (isSkillKnowledgeExpired()) {
+      localStorage.removeItem(SKILL_KNOWLEDGE_KEY)
+      localStorage.removeItem(SKILL_KNOWLEDGE_EXPIRY_KEY)
+      return null
+    }
+    const stored = localStorage.getItem(SKILL_KNOWLEDGE_KEY)
+    if (stored) {
+      try {
+        return JSON.parse(stored) as SkillKnowledgeStorage
+      } catch {
+        localStorage.removeItem(SKILL_KNOWLEDGE_KEY)
+        localStorage.removeItem(SKILL_KNOWLEDGE_EXPIRY_KEY)
+        return null
+      }
+    }
+    return null
+  }
+
+  // 初始化
+  skillKnowledgeData.value = initSkillKnowledgeFromStorage()
+
+  // 保存技能知识点到 localStorage（1天过期）
+  const setSkillKnowledge = (data: Omit<SkillKnowledgeStorage, 'timestamp'>) => {
+    try {
+      const storageData: SkillKnowledgeStorage = {
+        ...data,
+        timestamp: Date.now(),
+      }
+      localStorage.setItem(SKILL_KNOWLEDGE_KEY, JSON.stringify(storageData))
+      localStorage.setItem(SKILL_KNOWLEDGE_EXPIRY_KEY, String(Date.now() + ONE_DAY))
+      skillKnowledgeData.value = storageData
+    } catch (error) {
+      console.error('保存技能知识点失败:', error)
+    }
+  }
+
+  // 清除技能知识点
+  const clearSkillKnowledge = () => {
+    try {
+      skillKnowledgeData.value = null
+      localStorage.removeItem(SKILL_KNOWLEDGE_KEY)
+      localStorage.removeItem(SKILL_KNOWLEDGE_EXPIRY_KEY)
+    } catch (error) {
+      console.error('清除技能知识点失败:', error)
+    }
+  }
+
   return {
     selectedJobNames,
     jobToken,
@@ -148,5 +224,8 @@ export const useCareerStore = defineStore('career', () => {
     setJobToken,
     setHasCalledSaveJob,
     clearJobNames,
+    skillKnowledgeData,
+    setSkillKnowledge,
+    clearSkillKnowledge,
   }
 })

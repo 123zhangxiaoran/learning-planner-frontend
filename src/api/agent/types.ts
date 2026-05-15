@@ -82,3 +82,15 @@ export interface GetUserJobDataResponse {
   query: string[]
   skills: SkillItem[]
 }
+
+// 获取技能知识点请求
+export interface FetchSkillKnowledgePointsRequest {
+  job_names: string[] // 技能所属的岗位名称
+  selected_skill: string // 用户选择的技能
+}
+
+// 获取技能知识点响应
+export interface FetchSkillKnowledgePointsResponse {
+  skill_name: string
+  dimensions: string[]
+}
