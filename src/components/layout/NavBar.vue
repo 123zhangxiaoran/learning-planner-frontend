@@ -8,6 +8,7 @@
       <router-link to="/" class="nav-link" :class="{ active: isActive('/') }">首页</router-link>
       <router-link to="/user/career" class="nav-link" :class="{ active: isActive('/user/career') }">职业探索</router-link>
       <router-link to="/user/skill" class="nav-link" :class="{ active: isActive('/user/skill') }">技能分析</router-link>
+      <router-link to="/user/knowledge" class="nav-link" :class="{ active: isActive('/user/knowledge') }">知识库存</router-link>
       <router-link to="/user/me" class="nav-link" :class="{ active: isActive('/user/me') }">个人中心</router-link>
     </div>
   </nav>

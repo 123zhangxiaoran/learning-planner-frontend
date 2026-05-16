@@ -56,14 +56,52 @@
                 <span class="expand-arrow">▶</span>
               </div>
               <div class="career-progress">
-                <span class="progress-label">学习进度 0%</span>
+                <span class="progress-label">已学 {{ getJobSkills(job).length }} 个技能</span>
                 <div class="progress-bar">
-                  <div class="progress-fill" style="width: 0%"></div>
+                  <div
+                    class="progress-fill"
+                    :style="{ width: Math.min(getJobSkills(job).length * 25, 100) + '%' }"
+                  ></div>
                 </div>
               </div>
             </summary>
             <div class="career-content">
-              <!-- 技能列表暂时为空 -->
+              <div v-if="getJobSkills(job).length > 0" class="knowledge-list">
+                <div v-for="(skill, idx) in getJobSkills(job)" :key="idx" class="skill-row">
+                  <details class="knowledge-item">
+                    <summary class="knowledge-summary">
+                      <span class="knowledge-name">{{ skill.skill_name }}</span>
+                      <span class="knowledge-status">综合测评 {{ skill.score }}</span>
+                      <span class="expand-arrow">▶</span>
+                    </summary>
+                    <div
+                      class="knowledge-detail"
+                      v-if="skill.dimensions && skill.dimensions.length > 0"
+                    >
+                      <div class="dimension-title">知识点：</div>
+                      <div class="dimension-list">
+                        <div
+                          v-for="(dim, dIdx) in skill.dimensions"
+                          :key="dIdx"
+                          class="dimension-item"
+                        >
+                          <span class="dimension-name">{{ dim }}</span>
+                          <span class="dimension-score">评分 {{ skill.score }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="knowledge-detail" v-else>
+                      <div class="dimension-title">暂无知识点数据</div>
+                    </div>
+                  </details>
+                  <span class="btn-delete-skill">删除</span>
+                </div>
+              </div>
+              <div v-else class="knowledge-list">
+                <div class="knowledge-item pending">
+                  <span class="knowledge-name">还未规划学习技能</span>
+                </div>
+              </div>
             </div>
           </details>
         </div>
@@ -80,9 +118,12 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { logout } from '@/api/user'
 import { useCareerStore } from '@/stores/career'
+import { useSkillResultsStore } from '@/stores/skillResults'
+import type { SkillResult } from '@/stores/skillResults'
 
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
+const skillResultsStore = useSkillResultsStore()
 const router = useRouter()
 
 // 退出登录
@@ -102,12 +143,19 @@ function handleLogout() {
       document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
       // 清除职业存储
       careerStore.clearJobNames()
+      // 清除技能学习结果
+      skillResultsStore.clearAll()
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })
     .catch(() => {
       // 用户取消
     })
+}
+
+// 获取某个岗位已学习的技能列表
+function getJobSkills(jobName: string): SkillResult[] {
+  return skillResultsStore.getSkillResultsByJob(jobName)
 }
 </script>
 
@@ -284,7 +332,7 @@ function handleLogout() {
   overflow: hidden;
 }
 
-.career-item[open] .expand-arrow {
+.career-item[open] > .career-header .expand-arrow {
   transform: rotate(90deg);
 }
 
@@ -363,19 +411,134 @@ function handleLogout() {
   padding-top: 1rem;
 }
 
+/* ========= 技能行（含删除按钮） ========= */
+.skill-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.btn-delete-skill {
+  flex-shrink: 0;
+  width: 64px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  border-radius: 0 8px 8px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-delete-skill:hover {
+  background: #dc2626;
+  width: 68px;
+}
+
+.btn-delete-skill:hover {
+  background: #b91c1c;
+}
+
 .knowledge-item {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s;
+  overflow: hidden;
+}
+
+.knowledge-item[open] {
+  border-color: var(--accent-teal);
+}
+
+.knowledge-item[open] .expand-arrow {
+  transform: rotate(90deg);
+}
+
+.knowledge-summary {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 0.8rem 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  transition: all 0.3s;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+  background: rgba(46, 196, 182, 0.06);
 }
 
-.knowledge-item:hover {
-  border-color: var(--accent-orange);
+.knowledge-summary::-webkit-details-marker {
+  display: none;
+}
+
+.knowledge-detail {
+  padding: 0 1rem 0.8rem 1rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0;
+}
+
+.dimension-title {
+  font-size: 0.8rem;
+  color: var(--accent-teal);
+  font-weight: 600;
+  padding: 0.6rem 0 0.4rem 0;
+}
+
+.dimension-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.dimension-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.6rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--accent-teal);
+  line-height: 1.4;
+  transition: all 0.2s;
+  cursor: default;
+  user-select: text;
+}
+
+.dimension-item:hover {
+  border-left-color: var(--accent-orange);
   background: rgba(255, 107, 53, 0.05);
+}
+
+.dimension-item:hover .dimension-score {
+  background: rgba(255, 107, 53, 0.2);
+  color: var(--accent-orange);
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+.dimension-name {
+  flex: 1;
+  color: var(--text-primary);
+  user-select: text;
+}
+
+.dimension-score {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  background: rgba(46, 196, 182, 0.2);
+  color: var(--accent-teal);
+  border: 1px solid rgba(46, 196, 182, 0.3);
+  border-radius: 3px;
+  user-select: none;
 }
 
 .knowledge-status {
@@ -385,18 +548,9 @@ function handleLogout() {
   border-radius: 3px;
   min-width: 60px;
   text-align: center;
-}
-
-.knowledge-item.completed .knowledge-status {
   background: rgba(46, 196, 182, 0.2);
   color: var(--accent-teal);
   border: 1px solid rgba(46, 196, 182, 0.3);
-}
-
-.knowledge-item.in-progress .knowledge-status {
-  background: rgba(247, 197, 72, 0.2);
-  color: var(--accent-yellow);
-  border: 1px solid rgba(247, 197, 72, 0.3);
 }
 
 .knowledge-item.pending .knowledge-status {
@@ -407,8 +561,10 @@ function handleLogout() {
 
 .knowledge-name {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--text-primary);
+  letter-spacing: 0.02em;
 }
 
 .knowledge-link {
@@ -512,8 +668,12 @@ function handleLogout() {
   }
 
   .knowledge-item {
-    flex-wrap: wrap;
     gap: 0.6rem;
+  }
+
+  .knowledge-summary {
+    flex-wrap: wrap;
+    gap: 0.4rem;
     padding: 0.6rem 0.8rem;
   }
 
@@ -596,7 +756,22 @@ function handleLogout() {
   }
 
   .knowledge-item {
-    padding: 0.5rem 0.6rem;
+    gap: 0.6rem;
+  }
+
+  .knowledge-summary {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .knowledge-detail {
+    padding: 0 0.8rem 0.6rem 0.8rem;
+  }
+
+  .dimension-item {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
   }
 
   .knowledge-status {

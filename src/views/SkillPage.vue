@@ -396,6 +396,7 @@ import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
 import { usePlayerStore } from '@/stores/user'
+import { useSkillResultsStore } from '@/stores/skillResults'
 import {
   saveJobAndSearchRAG,
   answerUserQuestion,
@@ -409,6 +410,7 @@ const route = useRoute()
 const careerStore = useCareerStore()
 const skillKnowledgeStore = useSkillKnowledgeStore()
 const playerStore = usePlayerStore()
+const skillResultsStore = useSkillResultsStore()
 
 const selectedSkills = ref<string[]>([])
 const skillsData = ref<SkillItem[]>([])
@@ -882,6 +884,14 @@ const handleOptionClick = async (record: ChatRecord, optionIndex: number) => {
             downloadPPTFile(base64Data)
             console.log('[PPT] 下载完成')
             record.aiReply = '小顾问帮你规划完毕，记得查收哦~（下载完成）'
+            // 保存技能学习结果到store，用于MePage展示
+            const jobName = knowledgeData.job_name
+            const skillName = knowledgeData.skill_name
+            const dimensions = knowledgeData.dimensions || []
+            // 从skillsData中查找该岗位的评分
+            const jobSkillData = skillsData.value.find((s) => s.job_name === jobName)
+            const score = jobSkillData?.score ?? 0
+            skillResultsStore.addSkillResult(jobName, skillName, score, dimensions)
           } else {
             console.error('[PPT] 解析数据不满足:', parsed)
             record.aiReply = '生成失败，请稍后重试'

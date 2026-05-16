@@ -44,9 +44,9 @@
                 <h3 class="card-title">{{ knowledge.title }}</h3>
                 <p class="card-desc">{{ knowledge.description }}</p>
                 <div class="card-tags">
-                  <span 
-                    v-for="tag in knowledge.tags" 
-                    :key="tag" 
+                  <span
+                    v-for="tag in knowledge.tags"
+                    :key="tag"
                     class="tag"
                     :style="{ background: tagColors[tag] || tagColors.default }"
                   >
@@ -58,8 +58,8 @@
                   <span class="progress">
                     <span class="progress-text">进度：</span>
                     <span class="progress-bar">
-                      <span 
-                        class="progress-fill" 
+                      <span
+                        class="progress-fill"
                         :style="{ width: knowledge.progress + '%' }"
                       ></span>
                     </span>
@@ -83,13 +83,7 @@
           </div>
         </div>
 
-        <!-- 返回按钮 -->
-        <div class="back-section">
-          <router-link to="/user/skill" class="back-btn">
-            ← 返回技能分析
-          </router-link>
-        </div>
-      </section>
+        </section>
     </main>
 
     <!-- 浮动装饰元素 -->
