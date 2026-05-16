@@ -10,6 +10,8 @@ import type {
   GetUserJobDataResponse,
   SaveJobRequest,
   FetchSkillKnowledgePointsResponse,
+  GenerateLearningPathRequest,
+  GenerateLearningPathResponse,
 } from './types'
 
 export function sendChatMessage(
@@ -75,10 +77,22 @@ export function getUserJobData(userId: number): Promise<ApiResponse<GetUserJobDa
 export function fetchSkillKnowledgePoints(
   selectedSkill: string,
   jobName: string,
+  userId: number,
 ): Promise<ApiResponse<FetchSkillKnowledgePointsResponse>> {
   return request<FetchSkillKnowledgePointsResponse>({
     url: '/agent/fetchSkillKnowledgePoints',
     method: 'post',
-    data: { job_names: jobName, selected_skill: selectedSkill },
+    data: { job_names: jobName, selected_skill: selectedSkill, user_id: userId },
+  })
+}
+
+// 生成学习路线
+export function generateLearningPath(
+  data: GenerateLearningPathRequest,
+): Promise<ApiResponse<GenerateLearningPathResponse>> {
+  return request<GenerateLearningPathResponse>({
+    url: '/agent/generateLearningPath',
+    method: 'post',
+    data,
   })
 }

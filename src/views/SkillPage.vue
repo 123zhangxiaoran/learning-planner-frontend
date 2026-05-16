@@ -76,6 +76,11 @@
                     :class="{ 'wave-animation': record.aiReply.endsWith('....') }"
                     style="white-space: pre-wrap; margin: 0; font-family: inherit"
                   ><span v-if="record.aiReply.endsWith('....')" :key="waveKey" @animationend="onDotAnimationEnd($event)">{{ splitWaveText(record.aiReply).prefix }}<span v-for="d in splitWaveText(record.aiReply).dots" :key="d.index" class="wave-char" :style="{ animationDelay: d.delay }">{{ d.char }}</span></span><span v-else>{{ record.aiReply }}</span></pre>
+                  <!-- PPT幻灯片展示（已注释）
+                  <div v-if="record.pptSlides && record.pptSlides.length > 0" class="ppt-viewer">
+                    ...
+                  </div>
+                  -->
                   <!-- AI文本 + 选项（没有stem时） -->
                   <div v-if="record.aiReply && record.options?.length" class="ai-with-options">
                     <div
@@ -355,10 +360,26 @@
           <div class="panel-footer" v-if="skillOptions.length > 0 && !isSkillConfirmed">
             <button
               class="action-btn"
-              :class="{ disabled: selectedSkills.length === 0 }"
+              :class="{ disabled: selectedSkills.length === 0 || isConfirming }"
               @click="confirmSkill"
             >
-              确认学习目标
+              <template v-if="isConfirming">
+                <span
+                  class="wave-animation"
+                  :key="'confirm-' + waveKey"
+                  @animationend="onDotAnimationEnd($event)"
+                >
+                  {{ splitWaveText('确认中....').prefix
+                  }}<span
+                    v-for="d in splitWaveText('确认中....').dots"
+                    :key="d.index"
+                    class="wave-char"
+                    :style="{ animationDelay: d.delay }"
+                    >{{ d.char }}</span
+                  >
+                </span>
+              </template>
+              <template v-else>确认学习目标</template>
             </button>
           </div>
         </section>
@@ -373,17 +394,20 @@ import AIDialog from '@/components/ai/AIDialog.vue'
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
+import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
 import { usePlayerStore } from '@/stores/user'
 import {
   saveJobAndSearchRAG,
   answerUserQuestion,
   getUserJobData,
   fetchSkillKnowledgePoints,
+  generateLearningPath,
 } from '@/api/agent'
 import type { SkillItem } from '@/api/agent/types'
 
 const route = useRoute()
 const careerStore = useCareerStore()
+const skillKnowledgeStore = useSkillKnowledgeStore()
 const playerStore = usePlayerStore()
 
 const selectedSkills = ref<string[]>([])
@@ -393,6 +417,8 @@ const selectedJobNames = ref<string[]>([])
 const collapsedJobs = ref<number[]>([])
 const isSkillConfirmed = ref(false)
 const hasEverConfirmed = ref(false)
+const isConfirming = ref(false) // 确认按钮防重复点击
+// const currentPptSlide = ref(0) // 当前查看的PPT页码
 
 // 初始化时将所有岗位设为折叠状态
 const initCollapsedJobs = () => {
@@ -429,35 +455,54 @@ const skillOptions = computed(() => {
 
 // 确认技能选择
 const confirmSkill = async () => {
-  if (selectedSkills.value.length === 0) return
+  if (selectedSkills.value.length === 0 || isConfirming.value) return
+  isConfirming.value = true
 
-  // 根据选中的技能找到对应的岗位
-  const selectedSkillName = selectedSkills.value[0]!
-  const jobWithSkill = skillOptions.value.find((job) =>
-    job.skillList.some((skill) => skill.name === selectedSkillName),
-  )
-  const jobName = jobWithSkill ? jobWithSkill.name : ''
+  try {
+    // 根据选中的技能找到对应的岗位
+    const selectedSkillName = selectedSkills.value[0]!
+    const jobWithSkill = skillOptions.value.find((job) =>
+      job.skillList.some((skill) => skill.name === selectedSkillName),
+    )
+    const jobName = jobWithSkill ? jobWithSkill.name : ''
 
-  // 调用接口获取技能对应的知识点
-  const res = await fetchSkillKnowledgePoints(selectedSkillName, jobName)
-  if (res.code === 200 && res.data) {
-    const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
-    if (responseData.skill_name && responseData.dimensions) {
-      careerStore.setSkillKnowledge({
-        skill_name: responseData.skill_name,
-        dimensions: responseData.dimensions,
-      })
+    // 调用接口获取技能对应的知识点
+    const res = await fetchSkillKnowledgePoints(
+      selectedSkillName,
+      jobName,
+      playerStore.playerInfo?.id || 0,
+    )
+    let skillExists = false
+    if (res.code === 200 && res.data) {
+      const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+      if (responseData.skill_name && responseData.dimensions) {
+        skillKnowledgeStore.setSkillKnowledge({
+          skill_name: responseData.skill_name,
+          job_name: responseData.job_name,
+          dimensions: responseData.dimensions,
+        })
+      }
+      skillExists = responseData.exists === true
     }
-  }
 
-  isSkillConfirmed.value = true
-  hasEverConfirmed.value = true
-  chatRecords.value.push({
-    userMessage: '',
-    aiReply: '小顾问帮你评估知识战力',
-    options: ['纯小白，完全不懂', '有点基础，来考考我吧'],
-  })
-  scrollToBottom()
+    // 如果已存在知识点评估，跳过AI对话，但按钮直接消失
+    if (skillExists) {
+      isSkillConfirmed.value = true
+      hasEverConfirmed.value = true
+      return
+    }
+
+    isSkillConfirmed.value = true
+    hasEverConfirmed.value = true
+    chatRecords.value.push({
+      userMessage: '',
+      aiReply: '小顾问帮你评估知识战力',
+      options: ['纯小白，完全不懂', '有点基础，来考考我吧'],
+    })
+    scrollToBottom()
+  } finally {
+    isConfirming.value = false
+  }
 }
 
 // 切换技能选择（确认前为切换模式，确认后需先取消才能选其他）
@@ -643,6 +688,8 @@ interface ChatRecord {
   correctAnswer?: string // 正确答案
   explanation?: string // 答案解析
   isCorrect?: boolean // 用户是否答对
+  // pptBase64?: string // PPT文件base64数据
+  // pptSlides?: string[] // 解析后的幻灯片文本内容
 }
 const chatRecords = ref<ChatRecord[]>([])
 const isSendingMessage = ref(false)
@@ -687,21 +734,15 @@ const handleSendMessage = async (message: string) => {
   // 创建新的 AbortController
   abortController = new AbortController()
 
-  // 根据选中的技能找到对应的岗位
-  const selectedSkillName = selectedSkills.value[0]
-  const jobWithSkill = skillOptions.value.find((job) =>
-    job.skillList.some((skill) => skill.name === selectedSkillName),
-  )
-  const jobName = jobWithSkill ? jobWithSkill.name : ''
-
   // 调用接口提交用户消息，并添加3秒延迟给后端处理时间
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000))
+    const knowledgeData = skillKnowledgeStore.skillKnowledgeData
     const res = await answerUserQuestion(
       {
-        text: message,
-        job_names: jobName ? [jobName] : [],
-        selected_skill: selectedSkillName,
+        skill_name: knowledgeData?.skill_name || '',
+        job_name: knowledgeData?.job_name || '',
+        userinput: message,
       },
       abortController?.signal,
     )
@@ -720,6 +761,8 @@ const handleSendMessage = async (message: string) => {
           lastRecord.aiReply = innerData.answer || ''
         } else if (toolType === 'generate_quiz') {
           // 题目类型，需要交互
+          // 清空"思考中"占位文字，避免与题目内容同时显示
+          lastRecord.aiReply = ''
           const typeMap: Record<string, string> = {
             true_false: '判断题',
             choice: '选择题',
@@ -754,7 +797,7 @@ const handleSendMessage = async (message: string) => {
 }
 
 // 处理选项点击
-const handleOptionClick = (record: ChatRecord, optionIndex: number) => {
+const handleOptionClick = async (record: ChatRecord, optionIndex: number) => {
   // 点击"纯小白，完全不懂"时，先改内容再重置状态
   if (record.options?.[optionIndex]?.includes('纯小白')) {
     const selectedSkillName = selectedSkills.value[0] || '该技能'
@@ -795,13 +838,66 @@ const handleOptionClick = (record: ChatRecord, optionIndex: number) => {
     scrollToBottom()
   }
 
-  // 点击"是"时，覆盖为生成中的消息
+  // 点击"是"时，调用生成学习路线接口
   if (record.options?.[optionIndex] === '是') {
     record.aiReply = '小顾问正在生成中....'
     record.options = undefined
     record.selectedOption = undefined
     record.isCorrect = undefined
     scrollToBottom()
+
+    // 从知识 Pinia 获取字段
+    const knowledgeData = skillKnowledgeStore.skillKnowledgeData
+    // 从用户 Pinia 获取用户 ID
+    const userId = playerStore.playerInfo?.id
+
+    if (knowledgeData && userId) {
+      console.log('[PPT] 开始请求，参数:', {
+        skill_name: knowledgeData.skill_name,
+        job_name: knowledgeData.job_name,
+        dimensions: knowledgeData.dimensions,
+        userId,
+      })
+      try {
+        const res = await generateLearningPath({
+          skill_name: knowledgeData.skill_name,
+          job_name: knowledgeData.job_name,
+          dimensions: knowledgeData.dimensions,
+          user_id: userId,
+          userinput: '帮我生成一份ppt',
+        })
+        console.log('[PPT] 接口返回:', { code: res.code, dataType: typeof res.data })
+        if (res.code === 200 && res.data) {
+          // res.data 是 JSON 字符串，需要先解析
+          const parsed = JSON.parse(res.data as unknown as string)
+          console.log('[PPT] 解析后:', {
+            success: parsed.success,
+            hasData: !!parsed.data,
+            message: parsed.message,
+          })
+          if (parsed.success && parsed.data) {
+            const base64Data = parsed.data
+            console.log('[PPT] 拿到base64数据，长度:', base64Data.length)
+            // 下载PPT
+            downloadPPTFile(base64Data)
+            console.log('[PPT] 下载完成')
+            record.aiReply = '小顾问帮你规划完毕，记得查收哦~（下载完成）'
+          } else {
+            console.error('[PPT] 解析数据不满足:', parsed)
+            record.aiReply = '生成失败，请稍后重试'
+          }
+        } else {
+          console.error('[PPT] 条件不满足:', { code: res.code, data: res.data })
+          record.aiReply = '生成失败，请稍后重试'
+        }
+      } catch (error) {
+        console.error('[PPT] 请求异常:', error)
+        record.aiReply = '生成失败，请稍后重试'
+      }
+    } else {
+      console.error('缺少知识点数据或用户信息')
+      record.aiReply = '数据不完整，无法生成学习路线'
+    }
   }
 }
 
@@ -823,6 +919,61 @@ const cancelSendMessage = () => {
     abortController = null
     isSendingMessage.value = false
   }
+}
+
+/*
+// 解析PPTX文件，提取所有幻灯片的文本内容
+async function parsePPTX(base64Data: string): Promise<string[]> {
+  try {
+    const binaryStr = atob(base64Data)
+    const bytes = new Uint8Array(binaryStr.length)
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i)
+    }
+    const zip = await JSZip.loadAsync(bytes.buffer)
+    const slides: string[] = []
+    let slideIndex = 1
+    while (true) {
+      const fileName = `ppt/slides/slide${slideIndex}.xml`
+      const file = zip.file(fileName)
+      if (!file) break
+      const content = await file.async('string')
+      // 提取 <a:t> 标签中的文本
+      const textMatches = content.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || []
+      const slideText = textMatches
+        .map((m) => m.replace(/<[^>]+>/g, ''))
+        .filter((t) => t.trim())
+        .join('\n')
+      if (slideText.trim()) {
+        slides.push(slideText)
+      }
+      slideIndex++
+    }
+    return slides
+  } catch (e) {
+    console.error('解析PPTX失败:', e)
+    return []
+  }
+}
+*/
+
+// 下载PPT文件
+function downloadPPTFile(base64Data: string, filename = '学习规划.pptx') {
+  const byteChars = atob(base64Data)
+  const byteNums: number[] = []
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNums[i] = byteChars.charCodeAt(i)
+  }
+  const byteArray = new Uint8Array(byteNums)
+  const blob = new Blob([byteArray], {
+    type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // 将文本拆分为前缀文字 + 波浪动画的....四个点
@@ -2271,4 +2422,17 @@ const splitWaveText = (text: string) => {
   font-size: 1.3em;
   animation: wave-char 1.4s ease-in-out;
 }
+
+/* ========= PPT 幻灯片展示（已注释） =========
+.ppt-viewer { ... }
+.ppt-slide-container { ... }
+.ppt-slide-content { ... }
+.ppt-controls { ... }
+.ppt-nav-btn { ... }
+.ppt-nav-btn:hover:not(:disabled) { ... }
+.ppt-nav-btn:disabled { ... }
+.ppt-page-indicator { ... }
+.ppt-download-btn { ... }
+.ppt-download-btn:hover { ... }
+*/
 </style>

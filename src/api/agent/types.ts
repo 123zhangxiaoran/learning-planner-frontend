@@ -62,9 +62,9 @@ export interface RAGSearchResponse {
 
 // 回答用户问题请求
 export interface AnswerUserQuestionRequest {
-  text: string
-  job_names?: string[]
-  selected_skill?: string
+  skill_name: string
+  job_name: string
+  userinput: string
 }
 
 // 回答用户问题响应（后端返回的是JSON字符串）
@@ -87,10 +87,27 @@ export interface GetUserJobDataResponse {
 export interface FetchSkillKnowledgePointsRequest {
   job_names: string[] // 技能所属的岗位名称
   selected_skill: string // 用户选择的技能
+  user_id: number // 用户ID
 }
 
 // 获取技能知识点响应
 export interface FetchSkillKnowledgePointsResponse {
   skill_name: string
   dimensions: string[]
+  job_name: string // 技能所属的岗位名称
+  exists?: boolean // 是否已存在知识点评估，true则跳过AI对话
+}
+
+// 生成学习路线请求
+export interface GenerateLearningPathRequest {
+  skill_name: string
+  job_name: string
+  dimensions: string[]
+  user_id: number
+  userinput: string
+}
+
+// 生成学习路线响应
+export interface GenerateLearningPathResponse {
+  data: string // base64编码的PPT文件数据
 }

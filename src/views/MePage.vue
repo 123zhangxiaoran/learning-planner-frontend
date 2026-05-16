@@ -42,125 +42,28 @@
       <section class="career-section">
         <div class="section-header">
           <h3 class="section-title">我的职业岗位</h3>
-          <span class="course-count">已选 2 个岗位</span>
+          <span class="course-count">已选 {{ careerStore.selectedJobNames.length }} 个岗位</span>
         </div>
         <div class="career-list">
-          <!-- 岗位1：前端开发工程师 -->
-          <details class="career-item">
+          <details
+            class="career-item"
+            v-for="(job, index) in careerStore.selectedJobNames"
+            :key="index"
+          >
             <summary class="career-header">
               <div class="career-title-row">
-                <h4 class="career-name">前端开发工程师</h4>
+                <h4 class="career-name">{{ job }}</h4>
                 <span class="expand-arrow">▶</span>
               </div>
               <div class="career-progress">
-                <span class="progress-label">学习进度 65%</span>
+                <span class="progress-label">学习进度 0%</span>
                 <div class="progress-bar">
-                  <div class="progress-fill" style="width: 65%"></div>
+                  <div class="progress-fill" style="width: 0%"></div>
                 </div>
               </div>
             </summary>
             <div class="career-content">
-              <div class="knowledge-list">
-                <div class="knowledge-item completed">
-                  <span class="knowledge-status">已完成</span>
-                  <span class="knowledge-name">HTML5 基础</span>
-                  <a
-                    href="https://developer.mozilla.org/zh-CN/docs/Web/HTML"
-                    target="_blank"
-                    class="knowledge-link"
-                    >MDN文档</a
-                  >
-                </div>
-                <div class="knowledge-item completed">
-                  <span class="knowledge-status">已完成</span>
-                  <span class="knowledge-name">CSS3 样式与布局</span>
-                  <a
-                    href="https://developer.mozilla.org/zh-CN/docs/Web/CSS"
-                    target="_blank"
-                    class="knowledge-link"
-                    >MDN文档</a
-                  >
-                </div>
-                <div class="knowledge-item in-progress">
-                  <span class="knowledge-status">进行中</span>
-                  <span class="knowledge-name">JavaScript 核心</span>
-                  <a href="https://javascript.info/" target="_blank" class="knowledge-link"
-                    >现代JS教程</a
-                  >
-                </div>
-                <div class="knowledge-item pending">
-                  <span class="knowledge-status">未开始</span>
-                  <span class="knowledge-name">Vue3 框架</span>
-                  <a href="https://cn.vuejs.org/" target="_blank" class="knowledge-link"
-                    >Vue官方文档</a
-                  >
-                </div>
-                <div class="knowledge-item pending">
-                  <span class="knowledge-status">未开始</span>
-                  <span class="knowledge-name">TypeScript</span>
-                  <a
-                    href="https://www.typescriptlang.org/zh/"
-                    target="_blank"
-                    class="knowledge-link"
-                    >TS官方文档</a
-                  >
-                </div>
-              </div>
-            </div>
-          </details>
-
-          <!-- 岗位2：全栈工程师 -->
-          <details class="career-item">
-            <summary class="career-header">
-              <div class="career-title-row">
-                <h4 class="career-name">全栈工程师</h4>
-                <span class="expand-arrow">▶</span>
-              </div>
-              <div class="career-progress">
-                <span class="progress-label">学习进度 30%</span>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width: 30%"></div>
-                </div>
-              </div>
-            </summary>
-            <div class="career-content">
-              <div class="knowledge-list">
-                <div class="knowledge-item completed">
-                  <span class="knowledge-status">已完成</span>
-                  <span class="knowledge-name">Node.js 基础</span>
-                  <a href="https://nodejs.org/zh-cn/docs/" target="_blank" class="knowledge-link"
-                    >Node文档</a
-                  >
-                </div>
-                <div class="knowledge-item in-progress">
-                  <span class="knowledge-status">进行中</span>
-                  <span class="knowledge-name">Express 框架</span>
-                  <a href="https://expressjs.com/zh-cn/" target="_blank" class="knowledge-link"
-                    >Express官网</a
-                  >
-                </div>
-                <div class="knowledge-item pending">
-                  <span class="knowledge-status">未开始</span>
-                  <span class="knowledge-name">MySQL 数据库</span>
-                  <a href="https://dev.mysql.com/doc/" target="_blank" class="knowledge-link"
-                    >MySQL文档</a
-                  >
-                </div>
-                <div class="knowledge-item pending">
-                  <span class="knowledge-status">未开始</span>
-                  <span class="knowledge-name">Redis 缓存</span>
-                  <a href="https://redis.io/documentation" target="_blank" class="knowledge-link"
-                    >Redis文档</a
-                  >
-                </div>
-                <div class="knowledge-item pending">
-                  <span class="knowledge-status">未开始</span>
-                  <span class="knowledge-name">Docker 部署</span>
-                  <a href="https://docs.docker.com/" target="_blank" class="knowledge-link"
-                    >Docker文档</a
-                  >
-                </div>
-              </div>
+              <!-- 技能列表暂时为空 -->
             </div>
           </details>
         </div>
@@ -179,6 +82,7 @@ import { logout } from '@/api/user'
 import { useCareerStore } from '@/stores/career'
 
 const playerStore = usePlayerStore()
+const careerStore = useCareerStore()
 const router = useRouter()
 
 // 退出登录
@@ -186,18 +90,17 @@ function handleLogout() {
   ElMessageBox.confirm('确定要退出登录吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
-    type: 'warning'
+    type: 'warning',
   })
     .then(async () => {
-        const token = playerStore.getAccessToken
-        if (token) await logout()
+      const token = playerStore.getAccessToken
+      if (token) await logout()
       // 清除 pinia 中的用户信息和token
       playerStore.setPlayerInfo(null)
       playerStore.setAccessToken('')
       // 清除 cookie 中的 refreshToken
       document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
       // 清除职业存储
-      const careerStore = useCareerStore()
       careerStore.clearJobNames()
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
