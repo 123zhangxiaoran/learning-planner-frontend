@@ -155,3 +155,12 @@ export interface ReportPageDataResponse {
     score: number
   }[]
 }
+
+// 用户学习进度（从数据库直查）
+export interface UserLearningProgress {
+  userId: number
+  skillName: string
+  knowledgeName: string
+  score: number
+  jobName: string
+}

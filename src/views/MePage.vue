@@ -71,7 +71,7 @@
                   <details class="knowledge-item">
                     <summary class="knowledge-summary">
                       <span class="knowledge-name">{{ skill.skill_name }}</span>
-                      <span class="knowledge-status">综合测评 {{ skill.score }}</span>
+                      <span class="knowledge-status">{{ skill.score.toFixed(2) }}</span>
                       <span class="expand-arrow">▶</span>
                     </summary>
                     <div
@@ -96,6 +96,9 @@
                               <span
                                 v-if="getKnowledgeScore(skill.skill_name, dimGroup[0]!) !== null"
                                 class="knowledge-score"
+                                :class="
+                                  getScoreLevel(getKnowledgeScore(skill.skill_name, dimGroup[0]!))
+                                "
                               >
                                 {{ getKnowledgeScore(skill.skill_name, dimGroup[0]!) }}
                               </span>
@@ -136,7 +139,7 @@ import { logout } from '@/api/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
 import type { SkillResult } from '@/stores/skillResults'
-import { reportPageData } from '@/api/agent'
+import { reportPageData, getUserSelectedSkills } from '@/api/agent'
 
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
@@ -191,6 +194,17 @@ function getKnowledgeScore(skillName: string, knowledgeName: string): number | n
   return skill?.score ?? null
 }
 
+// 根据分数返回对应的等级样式
+function getScoreLevel(score: number | null): string {
+  if (score === null) return ''
+  if (score >= 100) return 'score-level-max'
+  if (score >= 90) return 'score-level-gold'
+  if (score >= 76) return 'score-level-purple'
+  if (score >= 61) return 'score-level-blue'
+  if (score >= 36) return 'score-level-green'
+  return 'score-level-low'
+}
+
 // 构建并上报页面数据
 async function sendReport() {
   const userId = playerStore.playerInfo?.id
@@ -239,14 +253,93 @@ async function sendReport() {
         }
       }
       knowledgeScores.value = newScores
+      // 重新计算每个技能的平均分写入 Pinia
+      recalcSkillAverages()
     }
     scoresLoaded.value = true
   }
 }
 
-// 页面加载立即上报，然后每60秒发一次
-onMounted(() => {
-  sendReport()
+// 获取用户已选技能
+async function fetchUserSelectedSkills() {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+  // Pinia 中已有技能数据，不重复请求
+  if (Object.keys(skillResultsStore.skillResults).length > 0) {
+    // 用 Pinia 中的知识点评分初始化本地 ref
+    knowledgeScores.value = { ...skillResultsStore.knowledgeScores }
+    scoresLoaded.value = true
+    return
+  }
+  try {
+    const res = await getUserSelectedSkills(userId)
+    const list = res.data
+    if (!list || !Array.isArray(list) || list.length === 0) return
+
+    // 按 jobName → skillName 分组
+    const skillMap: Record<string, Record<string, { name: string; score: number }[]>> = {}
+    for (const item of list) {
+      let jobMap = skillMap[item.jobName]
+      if (!jobMap) {
+        jobMap = {}
+        skillMap[item.jobName] = jobMap
+      }
+      const knowledgeList = jobMap[item.skillName] ?? []
+      knowledgeList.push({ name: item.knowledgeName, score: item.score })
+      jobMap[item.skillName] = knowledgeList
+    }
+
+    // 转换为 SkillResult 格式写入 Pinia（持久化）
+    const skillResultsData: Record<string, SkillResult[]> = {}
+    for (const [jobName, skills] of Object.entries(skillMap)) {
+      const skillList: SkillResult[] = []
+      skillResultsData[jobName] = skillList
+      for (const [skillName, knowledgeList] of Object.entries(skills)) {
+        const dimensions = knowledgeList.map((k) => [k.name])
+        const avgScore = knowledgeList.reduce((sum, k) => sum + k.score, 0) / knowledgeList.length
+        skillList.push({ skill_name: skillName, score: avgScore, dimensions })
+      }
+    }
+    skillResultsStore.setSkillResults(skillResultsData)
+
+    // 知识点评分写入 Pinia 持久化 + 本地 ref 显示
+    const newScores: Record<string, number> = {}
+    for (const item of list) {
+      newScores[`${item.skillName}::${item.knowledgeName}`] = item.score
+    }
+    skillResultsStore.setKnowledgeScores(newScores)
+    knowledgeScores.value = newScores
+    scoresLoaded.value = true
+  } catch (e) {
+    console.error('获取已选技能失败:', e)
+  }
+}
+
+// 遍历所有技能，从 knowledgeScores 计算平均分写入 Pinia
+function recalcSkillAverages() {
+  const scores = knowledgeScores.value
+  for (const skills of Object.values(skillResultsStore.skillResults)) {
+    for (const skill of skills) {
+      if (!skill.dimensions || skill.dimensions.length === 0) continue
+      let sum = 0
+      let count = 0
+      for (const dim of skill.dimensions) {
+        if (dim.length > 0) {
+          const key = `${skill.skill_name}::${dim[0]!}`
+          if (scores[key] !== undefined) {
+            sum += scores[key]!
+            count++
+          }
+        }
+      }
+      skill.score = count > 0 ? sum / count : 0
+    }
+  }
+}
+
+// 页面加载先请求数据，之后每60秒刷新
+onMounted(async () => {
+  await fetchUserSelectedSkills()
   setInterval(sendReport, 60000)
 })
 </script>
@@ -690,6 +783,74 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* 等级样式 — 低 0~35（默认灰白） */
+/* 等级样式 — 中低 36~60 */
+.knowledge-score.score-level-green {
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+  border-color: rgba(76, 175, 80, 0.35);
+}
+
+/* 等级样式 — 中等 61~75 */
+.knowledge-score.score-level-blue {
+  background: rgba(33, 150, 243, 0.15);
+  color: #1565c0;
+  border-color: rgba(33, 150, 243, 0.35);
+}
+
+/* 等级样式 — 良好 76~89 */
+.knowledge-score.score-level-purple {
+  background: rgba(156, 39, 176, 0.12);
+  color: #7b1fa2;
+  border-color: rgba(156, 39, 176, 0.3);
+}
+
+/* 等级样式 — 优秀 90~99 */
+.knowledge-score.score-level-gold {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.25), rgba(255, 152, 0, 0.15));
+  color: #e65100;
+  border-color: #ffb300;
+}
+
+/* 等级样式 — 满分 100 */
+.knowledge-score.score-level-max {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a1a1a, #333333);
+  color: #ffe44d;
+  border-color: #ffe44d;
+  font-weight: 700;
+  box-shadow: 0 0 4px rgba(255, 228, 77, 0.3);
+}
+
+/* 斜向扫光 — 金色和黑金色 */
+.knowledge-score.score-level-gold::after,
+.knowledge-score.score-level-max::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 4s infinite linear;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 /* 评分加载中状态 */
 .knowledge-score.is-loading {
   min-width: 36px;
@@ -699,8 +860,8 @@ onMounted(() => {
 
 .knowledge-status {
   padding: 0.2rem 0.6rem;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
   border-radius: 3px;
   min-width: 60px;
   text-align: center;

@@ -15,6 +15,7 @@ import type {
   ReportSkillPointViewRequest,
   ReportPageDataRequest,
   ReportPageDataResponse,
+  UserLearningProgress,
 } from './types'
 
 export function sendChatMessage(
@@ -121,6 +122,14 @@ export function reportSkillPointView(
     url: '/agent/reportSkillPointView',
     method: 'post',
     data,
+  })
+}
+
+// 根据用户ID获取已选技能（GET，query参数）
+export function getUserSelectedSkills(userId: number): Promise<ApiResponse<UserLearningProgress[]>> {
+  return request<UserLearningProgress[]>({
+    url: `/user/userSelectedSkills/${userId}`,
+    method: 'get',
   })
 }
 

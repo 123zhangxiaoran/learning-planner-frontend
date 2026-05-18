@@ -105,9 +105,7 @@
             </div>
             <h3 class="card-title">职业探索</h3>
           </div>
-          <p class="card-description">
-            你的专业能干嘛？AI来康康，说不定能挖到宝~
-          </p>
+          <p class="card-description">你的专业能干嘛？AI来康康，说不定能挖到宝~</p>
           <span class="card-link"> 去查看 → </span>
           <div class="card-sketch-decoration">
             <svg viewBox="0 0 100 60">
@@ -155,7 +153,9 @@
             </div>
             <h3 class="card-title">技能分析</h3>
           </div>
-          <p class="card-description">想不想知道自己缺啥技能？AI来把把脉，对症下药，让你悄悄变强~</p>
+          <p class="card-description">
+            想不想知道自己缺啥技能？AI来把把脉，对症下药，让你悄悄变强~
+          </p>
           <span class="card-link"> 技能分析 → </span>
         </router-link>
 
@@ -252,6 +252,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import NavBar from '@/components/layout/NavBar.vue'
+import { usePlayerStore } from '@/stores/user'
+import { useCareerStore } from '@/stores/career'
+import { getUserJobData } from '@/api/agent'
 
 // ======================== 反AI彩蛋 ========================
 const quotes = [
@@ -319,8 +322,33 @@ function handleMouseMove(e: MouseEvent) {
   }
 }
 
+// ======================== 恢复岗位数据 ========================
+const playerStore = usePlayerStore()
+const careerStore = useCareerStore()
+
+async function restoreUserData() {
+  if (careerStore.selectedJobNames.length > 0) return
+
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+
+  try {
+    const res = await getUserJobData(userId)
+    if (res.code === 200 && res.data) {
+      const data = JSON.parse(res.data as unknown as string)
+      const jobNames: string[] = Array.isArray(data.query) ? data.query : []
+      if (jobNames.length > 0) {
+        careerStore.setJobNames(jobNames)
+      }
+    }
+  } catch (e) {
+    console.warn('恢复岗位名称失败:', e)
+  }
+}
+
 // ======================== 生命周期 ========================
 onMounted(() => {
+  restoreUserData()
   refreshQuote()
   startAutoRefresh()
   window.addEventListener('mousemove', handleMouseMove)
