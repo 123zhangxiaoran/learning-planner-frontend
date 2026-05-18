@@ -78,15 +78,29 @@
                       class="knowledge-detail"
                       v-if="skill.dimensions && skill.dimensions.length > 0"
                     >
-                      <div class="dimension-title">知识点：</div>
-                      <div class="dimension-list">
-                        <div
-                          v-for="(dim, dIdx) in skill.dimensions"
-                          :key="dIdx"
-                          class="dimension-item"
-                        >
-                          <span class="dimension-name">{{ dim }}</span>
-                          <span class="dimension-score">评分 {{ skill.score }}</span>
+                      <div class="dimension-title">知识点维度：</div>
+                      <div
+                        v-for="(dimGroup, dIdx) in skill.dimensions"
+                        :key="dIdx"
+                        class="dimension-group"
+                      >
+                        <div class="dimension-name">
+                          <span class="dimension-label">{{ dimGroup[0] }}</span>
+                          <template v-if="!scoresLoaded">
+                            <span class="knowledge-score is-loading">
+                              <WaveLoading />
+                            </span>
+                          </template>
+                          <template v-else>
+                            <span class="knowledge-score-wrap">
+                              <span
+                                v-if="getKnowledgeScore(skill.skill_name, dimGroup[0]!) !== null"
+                                class="knowledge-score"
+                              >
+                                {{ getKnowledgeScore(skill.skill_name, dimGroup[0]!) }}
+                              </span>
+                            </span>
+                          </template>
                         </div>
                       </div>
                     </div>
@@ -113,6 +127,8 @@
 <script setup lang="ts">
 import NavBar from '@/components/layout/NavBar.vue'
 import GeoAvatar from '@/components/layout/GeoAvatar.vue'
+import WaveLoading from '@/components/layout/WaveLoading.vue'
+import { onMounted, ref } from 'vue'
 import { usePlayerStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
@@ -120,11 +136,16 @@ import { logout } from '@/api/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
 import type { SkillResult } from '@/stores/skillResults'
+import { reportPageData } from '@/api/agent'
 
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
 const router = useRouter()
+
+// 后端评分（reactive 渲染状态，不持久化）
+const knowledgeScores = ref<Record<string, number>>({})
+const scoresLoaded = ref(false)
 
 // 退出登录
 function handleLogout() {
@@ -157,6 +178,77 @@ function handleLogout() {
 function getJobSkills(jobName: string): SkillResult[] {
   return skillResultsStore.getSkillResultsByJob(jobName)
 }
+
+// 获取技能下指定知识点的评分（先查后端返回数据，再兜底技能整体评分）
+function getKnowledgeScore(skillName: string, knowledgeName: string): number | null {
+  if (!scoresLoaded.value) return null
+  const key = `${skillName}::${knowledgeName}`
+  if (knowledgeScores.value[key] !== undefined) {
+    return knowledgeScores.value[key]
+  }
+  const allSkills = careerStore.selectedJobNames.flatMap((name) => getJobSkills(name))
+  const skill = allSkills.find((s) => s.skill_name === skillName)
+  return skill?.score ?? null
+}
+
+// 构建并上报页面数据
+async function sendReport() {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+
+  let order = 1
+  const skills: {
+    skill_name: string
+    items: { order: number; knowledge_name: string }[]
+  }[] = []
+
+  for (const jobName of careerStore.selectedJobNames) {
+    const skillResults = getJobSkills(jobName)
+    for (const skill of skillResults) {
+      if (!skill.dimensions || skill.dimensions.length === 0) continue
+
+      const items: { order: number; knowledge_name: string }[] = []
+      for (const dimGroup of skill.dimensions) {
+        if (dimGroup.length > 0) {
+          items.push({ order, knowledge_name: dimGroup[0]! })
+          order++
+        }
+      }
+
+      if (items.length > 0) {
+        skills.push({ skill_name: skill.skill_name, items })
+      }
+    }
+  }
+
+  if (skills.length > 0) {
+    const res = await reportPageData({ userid: userId, skills })
+    // 按 order 映射回 skill_name::knowledge_name
+    if (res.data?.scores) {
+      const orderIndex: Record<number, { skill: string; knowledge: string }> = {}
+      for (const s of skills) {
+        for (const item of s.items) {
+          orderIndex[item.order] = { skill: s.skill_name, knowledge: item.knowledge_name }
+        }
+      }
+      const newScores: Record<string, number> = {}
+      for (const entry of res.data.scores) {
+        const info = orderIndex[entry.order]
+        if (info) {
+          newScores[`${info.skill}::${info.knowledge}`] = entry.score
+        }
+      }
+      knowledgeScores.value = newScores
+    }
+    scoresLoaded.value = true
+  }
+}
+
+// 页面加载立即上报，然后每60秒发一次
+onMounted(() => {
+  sendReport()
+  setInterval(sendReport, 60000)
+})
 </script>
 
 <style scoped>
@@ -443,10 +535,6 @@ function getJobSkills(jobName: string): SkillResult[] {
   width: 68px;
 }
 
-.btn-delete-skill:hover {
-  background: #b91c1c;
-}
-
 .knowledge-item {
   flex: 1;
   border: 1px solid var(--border-color);
@@ -524,8 +612,49 @@ function getJobSkills(jobName: string): SkillResult[] {
 }
 
 .dimension-name {
-  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: var(--text-primary);
+  user-select: text;
+}
+
+.dimension-group {
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--accent-teal);
+  transition: all 0.2s;
+}
+
+.dimension-group:hover {
+  border-left-color: var(--accent-orange);
+  background: rgba(255, 107, 53, 0.05);
+}
+
+.dimension-group .dimension-name {
+  font-weight: 600;
+}
+
+.dimension-group .dimension-name .dimension-label {
+  flex: 1;
+}
+
+.knowledge-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-left: 0.5rem;
+}
+
+.knowledge-point {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 0.15rem 0.5rem;
+  background: rgba(46, 196, 182, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.2);
+  border-radius: 3px;
   user-select: text;
 }
 
@@ -539,6 +668,33 @@ function getJobSkills(jobName: string): SkillResult[] {
   border: 1px solid rgba(46, 196, 182, 0.3);
   border-radius: 3px;
   user-select: none;
+}
+
+/* 能力值文字包裹 */
+.knowledge-score-wrap {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 能力值评分标签 */
+.knowledge-score {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.9rem;
+  background: rgba(240, 240, 242, 0.9);
+  color: var(--text-secondary);
+  border: 1px solid rgba(200, 200, 205, 0.5);
+  border-radius: 4px;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* 评分加载中状态 */
+.knowledge-score.is-loading {
+  min-width: 36px;
+  text-align: center;
+  font-size: 0.7rem;
 }
 
 .knowledge-status {

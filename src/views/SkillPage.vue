@@ -745,14 +745,19 @@ const handleSendMessage = async (message: string) => {
         skill_name: knowledgeData?.skill_name || '',
         job_name: knowledgeData?.job_name || '',
         userinput: message,
+        user_id: playerStore.playerInfo?.id || 0,
+        ...(knowledgeData?.dimensions ? { dimensions: knowledgeData.dimensions } : {}),
       },
       abortController?.signal,
     )
     if (res.code === 200 && res.data) {
       // res.data 是 JSON 字符串，需要先解析
       const responseData = JSON.parse(res.data as unknown as string)
-      // 解析内层 data（题目内容）
-      const innerData = JSON.parse(responseData.data)
+      // 解析内层 data（可能是 JSON 字符串或已经是对象）
+      const innerData =
+        typeof responseData.data === 'string'
+          ? JSON.parse(responseData.data)
+          : responseData.data
       // 更新最后一条对话记录的 AI 回复
       const lastRecord = chatRecords.value[chatRecords.value.length - 1]
       if (lastRecord) {
@@ -779,6 +784,22 @@ const handleSendMessage = async (message: string) => {
           lastRecord.codeSnippet = innerData.code_snippet
           lastRecord.correctAnswer = innerData.answer
           lastRecord.explanation = innerData.explanation
+        } else if (toolType === 'generate_ppt') {
+          // PPT 生成类型，触发下载
+          lastRecord.aiReply = innerData.answer || '小顾问帮你规划完毕，记得查收哦~（下载完成）'
+          const base64Data = innerData.data
+          if (base64Data) {
+            downloadPPTFile(base64Data)
+            // 同步保存学习结果到 skillResultsStore，用于 MePage 展示
+            const jobName = knowledgeData?.job_name
+            const skillName = knowledgeData?.skill_name
+            const dimensions = knowledgeData?.dimensions || []
+            if (jobName && skillName) {
+              const jobSkillData = skillsData.value.find((s) => s.job_name === jobName)
+              const score = jobSkillData?.score ?? 0
+              skillResultsStore.addSkillResult(jobName, skillName, score, dimensions)
+            }
+          }
         }
         scrollToBottom()
       }
@@ -870,15 +891,11 @@ const handleOptionClick = async (record: ChatRecord, optionIndex: number) => {
         })
         console.log('[PPT] 接口返回:', { code: res.code, dataType: typeof res.data })
         if (res.code === 200 && res.data) {
-          // res.data 是 JSON 字符串，需要先解析
+          // res.data 是 JSON 字符串，需要先解析，格式：{ success, data: { data: base64, tool }, message }
           const parsed = JSON.parse(res.data as unknown as string)
-          console.log('[PPT] 解析后:', {
-            success: parsed.success,
-            hasData: !!parsed.data,
-            message: parsed.message,
-          })
-          if (parsed.success && parsed.data) {
-            const base64Data = parsed.data
+          // 直接取内层 data 中的 ppt 码
+          const base64Data = parsed.data?.data
+          if (base64Data) {
             console.log('[PPT] 拿到base64数据，长度:', base64Data.length)
             // 下载PPT
             downloadPPTFile(base64Data)

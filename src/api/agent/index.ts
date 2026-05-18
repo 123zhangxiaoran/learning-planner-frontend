@@ -12,6 +12,9 @@ import type {
   FetchSkillKnowledgePointsResponse,
   GenerateLearningPathRequest,
   GenerateLearningPathResponse,
+  ReportSkillPointViewRequest,
+  ReportPageDataRequest,
+  ReportPageDataResponse,
 } from './types'
 
 export function sendChatMessage(
@@ -92,6 +95,41 @@ export function generateLearningPath(
 ): Promise<ApiResponse<GenerateLearningPathResponse>> {
   return request<GenerateLearningPathResponse>({
     url: '/agent/generateLearningPath',
+    method: 'post',
+    data,
+  })
+}
+
+// 上报知识点评分
+export function reportKnowledgePoint(data: {
+  userid: number
+  skill_name: string
+  knowledge_name: string
+}): Promise<ApiResponse<void>> {
+  return request<void>({
+    url: '/agent/reportKnowledgePoint',
+    method: 'post',
+    data,
+  })
+}
+
+// 上报技能点展示（个人主页顺序从1开始）
+export function reportSkillPointView(
+  data: ReportSkillPointViewRequest,
+): Promise<ApiResponse<void>> {
+  return request<void>({
+    url: '/agent/reportSkillPointView',
+    method: 'post',
+    data,
+  })
+}
+
+// 页面数据汇总上报（5秒自动触发一次）
+export function reportPageData(
+  data: ReportPageDataRequest,
+): Promise<ApiResponse<ReportPageDataResponse>> {
+  return request<ReportPageDataResponse>({
+    url: '/user/reportPageData',
     method: 'post',
     data,
   })

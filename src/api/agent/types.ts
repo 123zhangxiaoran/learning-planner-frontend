@@ -65,6 +65,8 @@ export interface AnswerUserQuestionRequest {
   skill_name: string
   job_name: string
   userinput: string
+  dimensions?: string[][]
+  user_id: number
 }
 
 // 回答用户问题响应（后端返回的是JSON字符串）
@@ -92,17 +94,29 @@ export interface FetchSkillKnowledgePointsRequest {
 
 // 获取技能知识点响应
 export interface FetchSkillKnowledgePointsResponse {
+  success: boolean
   skill_name: string
-  dimensions: string[]
+  dimensions: string[][] // 二维数组，每个子数组第一项为维度名，其余为知识点
   job_name: string // 技能所属的岗位名称
-  exists?: boolean // 是否已存在知识点评估，true则跳过AI对话
+}
+
+// 批量上报知识点评分请求
+export interface ReportKnowledgePointsRequest {
+  userid: number
+  tags: string[] // 顺序标签 ["0", "1", "2", ...]
+}
+
+// 批量上报知识点评分响应项
+export interface ReportKnowledgePointScore {
+  tag: string
+  score: number
 }
 
 // 生成学习路线请求
 export interface GenerateLearningPathRequest {
   skill_name: string
   job_name: string
-  dimensions: string[]
+  dimensions: string[][]
   user_id: number
   userinput: string
 }
@@ -110,4 +124,34 @@ export interface GenerateLearningPathRequest {
 // 生成学习路线响应
 export interface GenerateLearningPathResponse {
   data: string // base64编码的PPT文件数据
+}
+
+// 技能点展示上报请求（个人主页展示技能点顺序从1开始）
+export interface ReportSkillPointViewRequest {
+  userid: number
+  skill_name: string
+  items: {
+    order: number
+    knowledge_name: string
+  }[]
+}
+
+// 页面数据汇总上报请求（5秒自动触发，聚合所有技能与知识点）
+export interface ReportPageDataRequest {
+  userid: number
+  skills: {
+    skill_name: string
+    items: {
+      order: number
+      knowledge_name: string
+    }[]
+  }[]
+}
+
+// 页面数据汇总上报响应（后端返回各知识点评分，按order定位）
+export interface ReportPageDataResponse {
+  scores: {
+    order: number
+    score: number
+  }[]
 }

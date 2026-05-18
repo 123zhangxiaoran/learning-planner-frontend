@@ -12,7 +12,7 @@ const ONE_DAY = 24 * 60 * 60 * 1000
 export interface SkillKnowledgeStorage {
   skill_name: string
   job_name: string // 技能所属的岗位名称
-  dimensions: string[]
+  dimensions: string[][] // 二维数组，每个子数组第一项为维度名，其余为知识点
   timestamp: number
 }
 

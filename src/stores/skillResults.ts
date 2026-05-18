@@ -12,7 +12,7 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
 export interface SkillResult {
   skill_name: string
   score: number
-  dimensions: string[] // 知识点列表
+  dimensions: string[][] // 二维数组，每个子数组第一项为维度名，其余为知识点
 }
 
 export const useSkillResultsStore = defineStore('skillResults', () => {
@@ -70,7 +70,7 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
   }
 
   // 添加技能学习结果
-  const addSkillResult = (jobName: string, skillName: string, score: number, dimensions: string[] = []) => {
+  const addSkillResult = (jobName: string, skillName: string, score: number, dimensions: string[][] = []) => {
     if (!skillResults.value[jobName]) {
       skillResults.value[jobName] = []
     }
