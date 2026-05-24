@@ -3,21 +3,21 @@
     <!-- 路由视图：渲染当前页面（Home/Game/Login 等） -->
     <router-view />
     <!-- 全局AI小助手（登录页面不显示） -->
-    <AiAssistant v-if="showAiAssistant" />
+    <!-- <AiAssistant v-if="showAiAssistant" /> -->
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import AiAssistant from '@/components/layout/AiAssistant.vue'
+// import AiAssistant from '@/components/layout/AiAssistant.vue'
 
 const route = useRoute()
 
 // 登录页面不显示AI小助手
-const showAiAssistant = computed(() => {
-  return route.name !== 'user-login'
-})
+// const showAiAssistant = computed(() => {
+//   return route.name !== 'user-login'
+// })
 </script>
 
 <style>

@@ -38,6 +38,18 @@ const routes = [
     name: 'user-me',
     component: () => import('@/views/MePage.vue'),
   },
+  // 题目页面
+  {
+    path: '/user/question',
+    name: 'user-question',
+    component: () => import('@/views/QuestionPage.vue'),
+  },
+  // 错题页面
+  {
+    path: '/user/wrong',
+    name: 'user-wrong',
+    component: () => import('@/views/WrongQuestionPage.vue'),
+  },
 ]
 
 const router = createRouter({

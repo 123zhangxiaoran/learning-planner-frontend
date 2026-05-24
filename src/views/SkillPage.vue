@@ -740,13 +740,23 @@ const handleSendMessage = async (message: string) => {
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000))
     const knowledgeData = skillKnowledgeStore.skillKnowledgeData
+    // 先从 skillKnowledgeStore 取 dimensions，如果没有再从 skillResultsStore 查找
+    const dimensions = knowledgeData?.dimensions || (() => {
+      const jobName = knowledgeData?.job_name
+      const skillName = knowledgeData?.skill_name
+      if (!jobName || !skillName) return undefined
+      const results = skillResultsStore.skillResults[jobName]
+      if (!results) return undefined
+      const found = results.find(s => s.skill_name === skillName)
+      return found?.dimensions
+    })()
     const res = await answerUserQuestion(
       {
         skill_name: knowledgeData?.skill_name || '',
         job_name: knowledgeData?.job_name || '',
         userinput: message,
         user_id: playerStore.playerInfo?.id || 0,
-        ...(knowledgeData?.dimensions ? { dimensions: knowledgeData.dimensions } : {}),
+        ...(dimensions ? { dimensions } : {}),
       },
       abortController?.signal,
     )

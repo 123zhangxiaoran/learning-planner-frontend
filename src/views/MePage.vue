@@ -27,7 +27,9 @@
       <section class="profile-section">
         <div class="profile-card">
           <!-- 几何图案头像 - 使用组件 -->
-          <GeoAvatar :user-id="playerStore.playerInfo?.id || 0" :size="80" />
+          <div class="avatar-wrapper" @click="goToWrongQuestion">
+            <GeoAvatar :user-id="playerStore.playerInfo?.id || 0" :size="80" />
+          </div>
 
           <div class="profile-info">
             <h2 class="username">{{ playerStore.playerInfo?.nickname }}</h2>
@@ -151,6 +153,10 @@ const knowledgeScores = ref<Record<string, number>>({})
 const scoresLoaded = ref(false)
 
 // 退出登录
+function goToWrongQuestion() {
+  router.push({ name: 'user-wrong' })
+}
+
 function handleLogout() {
   ElMessageBox.confirm('确定要退出登录吗？', '提示', {
     confirmButtonText: '确定',
@@ -426,6 +432,16 @@ onMounted(async () => {
 .profile-info {
   flex: 1;
   min-width: 200px;
+}
+
+.avatar-wrapper {
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.avatar-wrapper:hover {
+  transform: scale(1.05);
 }
 
 .username {
