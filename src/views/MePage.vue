@@ -140,12 +140,14 @@ import { ElMessageBox } from 'element-plus'
 import { logout } from '@/api/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
+import { useQuestionsStore } from '@/stores/questions'
 import type { SkillResult } from '@/stores/skillResults'
 import { reportPageData, getUserSelectedSkills } from '@/api/agent'
 
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
+const questionsStore = useQuestionsStore()
 const router = useRouter()
 
 // 后端评分（reactive 渲染状态，不持久化）
@@ -175,6 +177,8 @@ function handleLogout() {
       careerStore.clearJobNames()
       // 清除技能学习结果
       skillResultsStore.clearAll()
+      // 清除题目数据
+      questionsStore.clearAllQuestions()
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })

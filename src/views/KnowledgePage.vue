@@ -96,10 +96,24 @@
                   </div>
 
                   <div class="skill-actions">
-                    <button class="btn-action btn-generate" @click="handleGenerate(cIndex, sIndex)">
-                      AI智能出题
+                    <button
+                      class="btn-action btn-generate"
+                      @click="handleGenerate(cIndex, sIndex)"
+                      :disabled="isGeneratingJob !== -1"
+                    >
+                      <span
+                        v-if="isGeneratingJob === cIndex && isGeneratingSkill === sIndex"
+                        class="loading-text"
+                      >
+                        专属题目定制中
+                        <WaveLoading />
+                      </span>
+                      <span v-else>AI智能出题</span>
                     </button>
-                    <button class="btn-action btn-question-bank">
+                    <button
+                      class="btn-action btn-question-bank"
+                      @click="openQuestionBank(cIndex, sIndex)"
+                    >
                       专属题库
                       <span class="wrong-count" v-if="skill.wrongCount > 0">{{
                         skill.wrongCount
@@ -143,8 +157,8 @@
               v-for="(dim, index) in currentSkillDimensions"
               :key="index"
               class="knowledge-dimension-btn"
-              :class="{ selected: dim[0] ? isDimensionSelected(dim[0]) : false }"
-              @click="dim[0] && toggleDimension(dim[0])"
+              :class="{ selected: isDimensionSelected(index) }"
+              @click="toggleDimension(index)"
             >
               {{ dim[0] }}
             </button>
@@ -168,6 +182,161 @@
         </div>
       </div>
     </div>
+
+    <!-- 专属题库面板 -->
+    <div class="question-bank-overlay" v-if="showQuestionBank">
+      <div class="question-bank-panel">
+        <div class="question-bank-header">
+          <h3 class="question-bank-title">
+            {{ filteredCareers[questionBankJobIndex]?.name }} -
+            {{ filteredCareers[questionBankJobIndex]?.skills[questionBankSkillIndex]?.name }}
+          </h3>
+          <button class="btn-close-question-bank" @click="closeQuestionBank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="question-bank-content">
+          <!-- 题目集合选择列表（按时间倒序，最新的在前） -->
+          <div
+            class="question-sets-container"
+            v-if="currentSkillQuestionSets.length > 0 && selectedSetIndex === -1"
+          >
+            <div
+              class="question-set-group"
+              v-for="(questionSet, displayIndex) in [...currentSkillQuestionSets].reverse()"
+              :key="displayIndex"
+            >
+              <div
+                class="question-set-header"
+                @click="selectQuestionSet(currentSkillQuestionSets.length - 1 - displayIndex)"
+              >
+                <span class="set-label"
+                  >第 {{ currentSkillQuestionSets.length - displayIndex }} 组</span
+                >
+                <span class="set-dimensions">{{ questionSet.dimensions.join('、') }}</span>
+                <span class="set-count">{{ questionSet.questions.length }} 道题</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 选中的题目集合详情 -->
+          <div class="selected-question-set" v-if="selectedSetIndex !== -1">
+            <div class="back-header" @click="selectedSetIndex = -1">
+              <span class="back-text">返回题库</span>
+            </div>
+            <div class="question-set-group">
+              <div class="question-set-header">
+                <span class="set-label"
+                  >第 {{ currentSkillQuestionSets.length - selectedSetIndex }} 组</span
+                >
+                <span class="set-dimensions">{{
+                  currentSelectedQuestionSet?.dimensions.join('、')
+                }}</span>
+                <span class="set-count"
+                  >{{ currentSelectedQuestionSet?.questions.length }} 道题</span
+                >
+              </div>
+              <div class="question-set-questions" v-if="currentSelectedQuestionSet">
+                <div
+                  class="question-item"
+                  v-for="(question, qIndex) in (currentSelectedQuestionSet as QuestionSet)
+                    .questions"
+                  :key="qIndex"
+                >
+                  <div class="question-text">
+                    <span class="question-number">{{ question.number }}.</span>
+                    {{ question.question.stem }}
+                  </div>
+                  <div class="question-options">
+                    <div
+                      class="option-item"
+                      :class="{
+                        'user-selected':
+                          !isSetSubmitted(selectedSetIndex) &&
+                          getOptionLetter(
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] || '',
+                          ) === getOptionLetter(option),
+                        correct:
+                          isSetSubmitted(selectedSetIndex) &&
+                          getOptionLetter(
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] || '',
+                          ) === getOptionLetter(option) &&
+                          getOptionLetter(option) ===
+                            getOptionLetter(question.question.answer || ''),
+                        wrong:
+                          isSetSubmitted(selectedSetIndex) &&
+                          getOptionLetter(
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] || '',
+                          ) === getOptionLetter(option) &&
+                          getOptionLetter(option) !==
+                            getOptionLetter(question.question.answer || ''),
+                      }"
+                      v-for="(option, oIndex) in question.question.options"
+                      :key="oIndex"
+                      @click="handleOptionClick(selectedSetIndex, qIndex, option, question)"
+                    >
+                      <span class="option-label">{{ String.fromCharCode(65 + oIndex) }}</span>
+                      <span class="option-text">{{ option }}</span>
+                    </div>
+                  </div>
+                  <!-- 收藏星星 -->
+                  <div
+                    class="star-icon"
+                    v-if="isSetSubmitted(selectedSetIndex)"
+                    @click="toggleStar(selectedSetIndex, qIndex)"
+                    :class="{ filled: isStarred(selectedSetIndex, qIndex, question) }"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path
+                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div class="set-footer">
+                  <div class="set-accuracy" v-if="isSetSubmitted(selectedSetIndex)">
+                    <span class="accuracy-label">正确率</span>
+                    <span class="accuracy-value">{{
+                      getSetAccuracy(currentSelectedQuestionSet, selectedSetIndex)
+                    }}</span>
+                  </div>
+                  <div
+                    class="set-accuracy pending"
+                    v-else-if="hasSetAnswers(selectedSetIndex, currentSelectedQuestionSet)"
+                  >
+                    <span class="accuracy-label">正确率</span>
+                    <span class="accuracy-value">--</span>
+                  </div>
+                  <button
+                    v-if="!isSetSubmitted(selectedSetIndex)"
+                    class="btn-submit-set"
+                    :disabled="!hasSetAnswers(selectedSetIndex, currentSelectedQuestionSet)"
+                    @click="submitSetAnswers(selectedSetIndex)"
+                  >
+                    提交答案
+                  </button>
+                  <button
+                    v-else
+                    class="btn-add-wrong-book"
+                    @click="addToWrongBook(selectedSetIndex)"
+                  >
+                    加入错题本
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="question-bank-empty"
+            v-if="currentSkillQuestionSets.length === 0 && selectedSetIndex === -1"
+          >
+            <span class="empty-text">暂无题目，点击上方「AI智能出题」生成</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -178,10 +347,23 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
+import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
+import { usePlayerStore } from '@/stores/user'
+import { useQuestionsStore, type QuestionSet } from '@/stores/questions'
+import {
+  generateQuestions as generateQuestionsApi,
+  getUserSelectedSkills,
+  type GenerateQuestionsResponse,
+  type GeneratedQuestion,
+} from '@/api/agent'
+import type { SkillResult } from '@/stores/skillResults'
 
 const router = useRouter()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
+const skillKnowledgeStore = useSkillKnowledgeStore()
+const playerStore = usePlayerStore()
+const questionsStore = useQuestionsStore()
 const searchKeyword = ref('')
 
 // 从 Pinia 获取岗位和技能数据
@@ -212,17 +394,62 @@ const filteredCareers = computed(() => {
     .filter((career) => career.name.toLowerCase().includes(keyword) || career.skills.length > 0)
 })
 
+// 获取用户已选技能
+async function fetchUserSelectedSkills() {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+  // Pinia 中已有技能数据，不重复请求
+  if (Object.keys(skillResultsStore.skillResults).length > 0) {
+    console.log('Pinia 已有技能数据，跳过请求')
+    return
+  }
+  try {
+    const res = await getUserSelectedSkills(userId)
+    const list = res.data
+    if (!list || !Array.isArray(list) || list.length === 0) return
+
+    // 按 jobName → skillName 分组
+    const skillMap: Record<string, Record<string, { name: string; score: number }[]>> = {}
+    for (const item of list) {
+      let jobMap = skillMap[item.jobName]
+      if (!jobMap) {
+        jobMap = {}
+        skillMap[item.jobName] = jobMap
+      }
+      const knowledgeList = jobMap[item.skillName] ?? []
+      knowledgeList.push({ name: item.knowledgeName, score: item.score })
+      jobMap[item.skillName] = knowledgeList
+    }
+
+    // 转换为 SkillResult 格式写入 Pinia（持久化）
+    const skillResultsData: Record<string, SkillResult[]> = {}
+    for (const [jobName, skills] of Object.entries(skillMap)) {
+      const skillList: SkillResult[] = []
+      skillResultsData[jobName] = skillList
+      for (const [skillName, knowledgeList] of Object.entries(skills)) {
+        const dimensions = knowledgeList.map((k) => [k.name])
+        const avgScore = knowledgeList.reduce((sum, k) => sum + k.score, 0) / knowledgeList.length
+        skillList.push({ skill_name: skillName, score: avgScore, dimensions })
+      }
+    }
+    skillResultsStore.setSkillResults(skillResultsData)
+    console.log('已加载用户已选技能到 Pinia')
+  } catch (e) {
+    console.error('获取已选技能失败:', e)
+  }
+}
+
 // 页面加载时确保 Pinia 数据已获取
 onMounted(async () => {
-  // 如果 Pinia 中没有技能数据，可能需要触发数据加载
-  if (Object.keys(skillResultsStore.skillResults).length === 0) {
-    // 这里可以触发数据加载，具体看业务逻辑
-    console.log('等待技能数据加载...')
-  }
+  await fetchUserSelectedSkills()
 })
 
 // 生成中状态
 const isGenerating = ref(false)
+
+// 追踪哪个按钮正在生成
+const isGeneratingJob = ref<number>(-1)
+const isGeneratingSkill = ref<number>(-1)
 
 // 弹窗显示状态
 const showDialog = ref(false)
@@ -231,31 +458,205 @@ const showDialog = ref(false)
 const currentJobIndex = ref<number>(-1)
 const currentSkillIndex = ref<number>(-1)
 
-// 选中的知识点维度（支持多选）
-const selectedDimensions = ref<Set<string>>(new Set())
+// 选中的知识点维度索引（支持多选）
+const selectedDimensionIndices = ref<Set<number>>(new Set())
+
+// 题库面板显示状态
+const showQuestionBank = ref(false)
+const questionBankJobIndex = ref<number>(-1)
+const questionBankSkillIndex = ref<number>(-1)
+
+// 当前选中的题目集合索引（-1表示未选中）
+const selectedSetIndex = ref<number>(-1)
+
+// 当前选中的题目集合（直接使用selectedSetIndex作为数组索引）
+const currentSelectedQuestionSet = computed<QuestionSet | null>(() => {
+  if (selectedSetIndex.value === -1) return null
+  return currentSkillQuestionSets.value[selectedSetIndex.value] || null
+})
+
+// 用户答题记录 key: "setIndex-qIndex", value: 选中的选项
+const answeredQuestions = ref<Record<string, string>>({})
+
+// 题目收藏状态 key: "setIndex-qIndex", value: 是否收藏
+const starredQuestions = ref<Record<string, boolean>>({})
+
+// 获取选项字母（取第一个字符并转大写）
+function getOptionLetter(option: string): string {
+  return (option || '').charAt(0).toUpperCase()
+}
+
+// 检查某组是否已有用户作答
+function hasSetAnswers(setIndex: number, questionSet: QuestionSet): boolean {
+  return questionSet.questions.some((_, qIndex: number) => {
+    return !!answeredQuestions.value[`${setIndex}-${qIndex}`]
+  })
+}
+
+// 检查某组是否已提交
+const submittedSets = ref<Set<number>>(new Set())
+
+// 提交某组答案
+function submitSetAnswers(setIndex: number) {
+  submittedSets.value.add(setIndex)
+}
+
+// 检查某组是否已提交
+function isSetSubmitted(setIndex: number): boolean {
+  return submittedSets.value.has(setIndex)
+}
+
+// 加入错题本
+function addToWrongBook(setIndex: number) {
+  // 获取当前题目集合中答错的题目
+  const questionSet = currentSelectedQuestionSet.value
+  if (!questionSet) return
+
+  const wrongQuestions = questionSet.questions.filter((q, qIndex) => {
+    const key = `${setIndex}-${qIndex}`
+    const userAnswer = answeredQuestions.value[key]
+    return userAnswer && getOptionLetter(userAnswer) !== getOptionLetter(q.question.answer || '')
+  })
+
+  console.log('加入错题本的题目:', wrongQuestions)
+  alert(`已将 ${wrongQuestions.length} 道错题加入错题本`)
+}
+
+// 检查题目是否答错
+function isQuestionWrong(
+  setIndex: number,
+  qIndex: number,
+  question: QuestionSet['questions'][0],
+): boolean {
+  const key = `${setIndex}-${qIndex}`
+  const userAnswer = answeredQuestions.value[key]
+  if (!userAnswer) return false
+  return getOptionLetter(userAnswer) !== getOptionLetter(question.question.answer || '')
+}
+
+// 切换题目收藏状态
+function toggleStar(setIndex: number, qIndex: number) {
+  const key = `${setIndex}-${qIndex}`
+  starredQuestions.value[key] = !starredQuestions.value[key]
+}
+
+// 检查题目是否已收藏（如果用户未手动设置，则根据对错返回默认值）
+function isStarred(
+  setIndex: number,
+  qIndex: number,
+  question?: QuestionSet['questions'][0],
+): boolean {
+  const key = `${setIndex}-${qIndex}`
+  // 如果用户手动设置过，返回用户设置的状态
+  if (key in starredQuestions.value) {
+    return starredQuestions.value[key] ?? false
+  }
+  // 如果未设置且提供了题目信息，根据对错返回默认值：对的空(false)，错的黄(true)
+  if (question) {
+    return isQuestionWrong(setIndex, qIndex, question)
+  }
+  return false
+}
+
+// 计算某组的正确率（仅在提交后显示）
+function getSetAccuracy(questionSet: QuestionSet, setIndex: number): string {
+  if (!isSetSubmitted(setIndex)) return '--'
+  const total = questionSet.questions.length
+  if (total === 0) return '0.00%'
+
+  let correctCount = 0
+  questionSet.questions.forEach((q, qIndex: number) => {
+    const key = `${setIndex}-${qIndex}`
+    const userAnswer = answeredQuestions.value[key]
+    if (userAnswer && getOptionLetter(userAnswer) === getOptionLetter(q.question.answer || '')) {
+      correctCount++
+    }
+  })
+
+  const accuracy = (correctCount / total) * 100
+  return accuracy.toFixed(2) + '%'
+}
 
 // 当前技能的知识点维度
 const currentSkillDimensions = computed(() => {
-  if (currentJobIndex.value === -1 || currentSkillIndex.value === -1) {
-    return []
-  }
-  const career = careersData.value[currentJobIndex.value]
+  const career = filteredCareers.value[currentJobIndex.value]
   if (!career) return []
-  const skill = career.skills[currentSkillIndex.value]
-  if (!skill) return []
 
-  // 从 Pinia 获取完整技能数据，包含 dimensions
   const jobName = career.name
-  const allSkills = skillResultsStore.getSkillResultsByJob(jobName)
-  const fullSkill = allSkills.find((s) => s.skill_name === skill.name)
-  return fullSkill?.dimensions || []
+  const skillName = career.skills[currentSkillIndex.value]?.name
+
+  // 先从 skillKnowledgeStore 查找（需匹配 job_name 和 skill_name）
+  const knowledgeData = skillKnowledgeStore.skillKnowledgeData
+  if (knowledgeData?.job_name === jobName && knowledgeData?.skill_name === skillName) {
+    return knowledgeData.dimensions || []
+  }
+
+  // 再从 skillResultsStore 查找
+  const results = skillResultsStore.skillResults[jobName]
+  if (results) {
+    const found = results.find((s) => s.skill_name === skillName)
+    if (found) {
+      return found.dimensions || []
+    }
+  }
+
+  return []
 })
 
 // 关闭弹窗
 function closeDialog() {
   showDialog.value = false
-  selectedDimensions.value.clear()
+  selectedDimensionIndices.value.clear()
   isGenerating.value = false
+}
+
+// 打开专属题库
+function openQuestionBank(cIndex: number, sIndex: number) {
+  questionBankJobIndex.value = cIndex
+  questionBankSkillIndex.value = sIndex
+  showQuestionBank.value = true
+}
+
+// 关闭专属题库
+function closeQuestionBank() {
+  showQuestionBank.value = false
+  questionBankJobIndex.value = -1
+  questionBankSkillIndex.value = -1
+  selectedSetIndex.value = -1
+  answeredQuestions.value = {}
+  submittedSets.value.clear()
+}
+
+// 选中题目集合（点击后只显示该集合）
+function selectQuestionSet(setIndex: number) {
+  selectedSetIndex.value = setIndex
+}
+
+// 处理选项点击（用户答题）
+function handleOptionClick(
+  setIndex: number,
+  qIndex: number,
+  option: string,
+  question: GeneratedQuestion,
+) {
+  // 如果已提交，不能修改
+  if (isSetSubmitted(setIndex)) return
+  const key = `${setIndex}-${qIndex}`
+  const trimmedOption = (option || '').trim()
+  // 如果点击的是已选中的选项，则取消选择
+  if (answeredQuestions.value[key] === trimmedOption) {
+    delete answeredQuestions.value[key]
+  } else {
+    // 去除首尾空白
+    answeredQuestions.value[key] = trimmedOption
+  }
+  console.log('答题调试:', {
+    key,
+    selectedOption: option,
+    selectedLetter: getOptionLetter(option),
+    correctAnswer: question.question.answer,
+    isCorrect: getOptionLetter(option) === getOptionLetter(question.question.answer || ''),
+  })
 }
 
 // 跳转到题目页面
@@ -269,62 +670,134 @@ function handleGenerate(cIndex: number, sIndex: number) {
   currentSkillIndex.value = sIndex
   showDialog.value = true
 
-  // 默认选中所有知识点维度
+  // 默认选中所有知识点维度（按索引）
   const dimensions = currentSkillDimensions.value
-  selectedDimensions.value = new Set(
-    dimensions.filter((dim) => dim[0] !== undefined).map((dim) => dim[0]) as string[],
-  )
+  selectedDimensionIndices.value = new Set(dimensions.map((_, index) => index))
 }
 
-// 切换知识点选中状态
-function toggleDimension(dimension: string) {
-  if (selectedDimensions.value.has(dimension)) {
-    selectedDimensions.value.delete(dimension)
+// 切换知识点选中状态（按索引）
+function toggleDimension(index: number) {
+  if (selectedDimensionIndices.value.has(index)) {
+    selectedDimensionIndices.value.delete(index)
   } else {
-    selectedDimensions.value.add(dimension)
+    selectedDimensionIndices.value.add(index)
   }
 }
 
-// 检查知识点是否选中
-function isDimensionSelected(dimension: string): boolean {
-  return selectedDimensions.value.has(dimension)
+// 检查知识点是否选中（按索引）
+function isDimensionSelected(index: number): boolean {
+  return selectedDimensionIndices.value.has(index) ?? false
 }
 
 // 判断是否全部选中
 const isAllSelected = computed(() => {
   if (currentSkillDimensions.value.length === 0) return false
-  return currentSkillDimensions.value.every((dim) => dim[0] && selectedDimensions.value.has(dim[0]))
+  return currentSkillDimensions.value.every((_, index) => selectedDimensionIndices.value.has(index))
+})
+
+// 当前技能的题目集合列表
+const currentSkillQuestionSets = computed(() => {
+  if (questionBankJobIndex.value === -1 || questionBankSkillIndex.value === -1) return []
+  const career = filteredCareers.value[questionBankJobIndex.value]
+  if (!career) return []
+  const skillName = career.skills[questionBankSkillIndex.value]?.name
+  if (!skillName) return []
+
+  // 调试：检查 store 中的所有 key
+  const key = `${career.name}::${skillName}`
+  console.log('查询key:', key)
+  console.log('所有keys:', Object.keys(questionsStore.questionSetsByKey))
+  console.log('store数据:', questionsStore.questionSetsByKey)
+  return questionsStore.getQuestionSetsBySkillAndJob(career.name, skillName)
 })
 
 // 切换全选状态
 function toggleSelectAll() {
   if (isAllSelected.value) {
     // 取消全选
-    selectedDimensions.value.clear()
+    selectedDimensionIndices.value.clear()
   } else {
     // 全选
-    selectedDimensions.value = new Set(
-      currentSkillDimensions.value
-        .filter((dim) => dim[0] !== undefined)
-        .map((dim) => dim[0]) as string[],
-    )
+    selectedDimensionIndices.value = new Set(currentSkillDimensions.value.map((_, index) => index))
   }
 }
 
 // 生成专属题目
-function handleGenerateQuestions() {
-  if (selectedDimensions.value.size === 0) {
+async function handleGenerateQuestions() {
+  if (selectedDimensionIndices.value.size === 0) {
     alert('请先选择至少一个知识点维度')
     return
   }
 
-  isGenerating.value = true
+  // 获取当前技能信息
+  const career = filteredCareers.value[currentJobIndex.value]
+  const skill = career?.skills[currentSkillIndex.value]
 
-  // TODO: 调用生成题目的API
-  setTimeout(() => {
-    isGenerating.value = false
-    alert(`已生成：${Array.from(selectedDimensions.value).join('、')} 的专属题目`)
-  }, 3000)
+  if (!career || !skill) {
+    alert('获取技能信息失败')
+    return
+  }
+
+  // 获取用户ID
+  if (!playerStore.playerInfo?.id) {
+    alert('用户信息不存在，请重新登录')
+    return
+  }
+  const userId = playerStore.playerInfo.id
+
+  // 记录正在生成的位置，显示在AI智能出题按钮上
+  isGeneratingJob.value = currentJobIndex.value
+  isGeneratingSkill.value = currentSkillIndex.value
+
+  // 根据选中的索引从原始数据获取完整的二维数组
+  const fullDimensions = currentSkillDimensions.value.filter((_, index) =>
+    selectedDimensionIndices.value.has(index),
+  )
+
+  // 立即关闭弹窗
+  closeDialog()
+
+  try {
+    // 调用生成题目的API
+    const response = await generateQuestionsApi({
+      skill_name: skill.name,
+      job_name: career.name,
+      dimensions: fullDimensions,
+      user_id: userId,
+    })
+
+    if (response.code === 200 && response.data) {
+      // response.data 是 JSON 字符串，需要先解析
+      console.log('原始响应:', response.data)
+      const parsedData = JSON.parse(response.data as string) as GenerateQuestionsResponse
+      console.log('解析后数据:', parsedData)
+
+      if (parsedData.success && parsedData.data) {
+        // 添加题目集合到 store
+        const selectedNames = fullDimensions.map((dim) => dim[0]).filter(Boolean) as string[]
+        console.log('添加到store:', {
+          jobName: career.name,
+          skillName: skill.name,
+          selectedNames,
+          questionCount: parsedData.data.length,
+        })
+        questionsStore.addQuestionSet(career.name, skill.name, selectedNames, parsedData.data)
+        console.log('store当前数据:', questionsStore.questionSetsByKey)
+        alert(`已生成 ${parsedData.data.length} 道题目：${selectedNames.join('、')}`)
+      } else {
+        alert(parsedData.message || '生成题目失败')
+      }
+    } else {
+      alert(response.message || '生成题目失败')
+    }
+  } catch (error) {
+    console.error('生成题目失败:', error)
+    alert('生成题目失败，请重试')
+  } finally {
+    // 恢复按钮状态
+    isGeneratingJob.value = -1
+    isGeneratingSkill.value = -1
+  }
 }
 </script>
 
@@ -651,6 +1124,17 @@ function handleGenerateQuestions() {
   transform: scale(1.02);
 }
 
+.btn-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-generate:disabled:hover {
+  background: rgba(255, 107, 53, 0.15);
+  color: var(--accent-orange);
+  transform: none;
+}
+
 .btn-question-bank {
   background: rgba(46, 196, 182, 0.15);
   color: var(--accent-teal);
@@ -870,6 +1354,450 @@ function handleGenerateQuestions() {
 .btn-cancel:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ========= 专属题库面板 ========= */
+.question-bank-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.question-bank-panel {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  width: 65vw;
+  max-width: 900px;
+  height: 80vh;
+  border-radius: 16px;
+  box-shadow:
+    0 25px 80px rgba(0, 0, 0, 0.25),
+    0 0 1px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.question-bank-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.question-bank-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.btn-close-question-bank {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close-question-bank:hover {
+  background: #fee2e2;
+}
+
+.btn-close-question-bank svg {
+  width: 20px;
+  height: 20px;
+  color: #6b7280;
+}
+
+.question-bank-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.question-sets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.question-set-group {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition:
+    box-shadow 0.3s,
+    transform 0.2s;
+}
+
+.question-set-group:hover {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+}
+
+.question-set-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem 1.4rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border-left: 4px solid transparent;
+}
+
+.question-set-header:hover {
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border-left-color: #3b82f6;
+}
+
+.question-set-header.expanded {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f7ff 100%);
+  border-left-color: #3b82f6;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.set-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+}
+
+.set-dimensions {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.set-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.expand-icon {
+  font-size: 0.9rem;
+  color: #3b82f6;
+  transition: transform 0.3s ease;
+  background: #eff6ff;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.question-set-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 1.4rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.set-accuracy {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.2rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 10px;
+  border: 1px solid #bae6fd;
+}
+
+.set-accuracy.pending {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-color: #d1d5db;
+}
+
+.set-accuracy.pending .accuracy-label {
+  color: #6b7280;
+}
+
+.set-accuracy.pending .accuracy-value {
+  color: #9ca3af;
+}
+
+.accuracy-label {
+  font-size: 0.85rem;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.accuracy-value {
+  font-size: 1rem;
+  color: #0ea5e9;
+  font-weight: 700;
+}
+
+.set-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.btn-submit-set {
+  padding: 0.6rem 1.5rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-submit-set:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-submit-set:disabled {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ========= 加入错题本按钮 ========= */
+.btn-add-wrong-book {
+  padding: 0.6rem 1.5rem;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-add-wrong-book:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+/* ========= 收藏星星 ========= */
+.star-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0.8rem;
+  margin-left: auto;
+}
+
+.star-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: #f59e0b;
+  transition: all 0.2s ease;
+}
+
+.star-icon:hover svg {
+  transform: scale(1.1);
+}
+
+.star-icon.filled svg {
+  fill: #f59e0b;
+  stroke: #f59e0b;
+}
+
+/* ========= 返回题库按钮 ========= */
+.back-header {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1.2rem;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 1.5rem;
+}
+
+.back-header:hover {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.back-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+  transition: color 0.2s;
+}
+
+.back-header:hover .back-text {
+  color: #3b82f6;
+}
+
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.question-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.4rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+}
+
+.question-item:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.question-number {
+  font-weight: 700;
+  color: #3b82f6;
+  margin-right: 0.5rem;
+}
+
+.question-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.9rem 1.1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.option-item:hover:not(.correct):not(.wrong) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.option-item.wrong {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+}
+
+.option-item.user-selected {
+  border-color: #3b82f6 !important;
+  border-width: 2px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%) !important;
+}
+
+/* correct 必须在 wrong 之后定义，确保优先级更高 */
+.option-item.correct {
+  background: #d1fae5 !important;
+  border-color: #10b981 !important;
+}
+
+.option-item.correct.wrong {
+  /* 如果同时有 correct 和 wrong（不应该发生），显示红色 */
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+}
+
+.correct-icon {
+  margin-left: auto;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.wrong-icon {
+  margin-left: auto;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.option-label {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.option-item.correct .option-label {
+  background: #10b981;
+  color: #fff;
+}
+
+.option-item.wrong .option-label {
+  background: #ef4444;
+  color: #fff;
+}
+
+.option-text {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.question-bank-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
 }
 
 /* ========= 空状态 ========= */

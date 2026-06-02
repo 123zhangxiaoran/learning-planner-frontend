@@ -16,6 +16,9 @@ import type {
   ReportPageDataRequest,
   ReportPageDataResponse,
   UserLearningProgress,
+  GenerateQuestionsRequest,
+  GenerateQuestionsResponse,
+  GeneratedQuestion,
 } from './types'
 
 export function sendChatMessage(
@@ -142,4 +145,22 @@ export function reportPageData(
     method: 'post',
     data,
   })
+}
+
+// 生成专属题目
+export function generateQuestions(
+  data: GenerateQuestionsRequest,
+): Promise<ApiResponse<string>> {
+  return request<string>({
+    url: '/agent/generateQuestions',
+    method: 'post',
+    data,
+  })
+}
+
+// 重新导出类型
+export type {
+  GenerateQuestionsRequest,
+  GenerateQuestionsResponse,
+  GeneratedQuestion,
 }
