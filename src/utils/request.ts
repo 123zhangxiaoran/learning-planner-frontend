@@ -143,6 +143,21 @@ async function refreshAccessToken(isLogout: boolean = false): Promise<boolean> {
       }
 
       // 刷新失败：业务逻辑错误
+      if (res.code === 400) {
+        // code === 400（参数错误），说明 token 无效或参数异常，清除数据并跳转登录页
+        playerStore.setAccessToken('')
+        playerStore.setPlayerInfo(null)
+        const { useCareerStore } = await import('@/stores/career')
+        useCareerStore().clearJobNames()
+        router.replace({ name: 'user-login' })
+      } else if (res.code === 404) {
+        // code === 404（UNAUTHORIZED），未登录或token已过期，清除数据并跳转登录页
+        playerStore.setAccessToken('')
+        playerStore.setPlayerInfo(null)
+        const { useCareerStore } = await import('@/stores/career')
+        useCareerStore().clearJobNames()
+        router.replace({ name: 'user-login' })
+      }
       return false
     } catch (error) {
       // 如果是401，说明长token也过期了，需要重新登录

@@ -59,7 +59,7 @@
               </svg>
             </div>
             <div class="wrong-book-info">
-              <h4 class="wrong-book-title">专属题库</h4>
+              <h4 class="wrong-book-title">错题本</h4>
               <p class="wrong-book-desc">共 <span class="total-wrong">23</span> 道题待练习</p>
             </div>
             <button class="btn-wrong-book" @click="goToQuestion">查看全部</button>
@@ -99,10 +99,10 @@
                     <button
                       class="btn-action btn-generate"
                       @click="handleGenerate(cIndex, sIndex)"
-                      :disabled="isGeneratingJob !== -1"
+                      :disabled="questionsStore.generatingKey !== null"
                     >
                       <span
-                        v-if="isGeneratingJob === cIndex && isGeneratingSkill === sIndex"
+                        v-if="questionsStore.isGenerating(career.name, skill.name)"
                         class="loading-text"
                       >
                         专属题目定制中
@@ -167,7 +167,7 @@
             <button
               class="btn-generate-questions"
               @click="handleGenerateQuestions"
-              :disabled="isGenerating"
+              :disabled="isGenerating || selectedDimensionIndices.size === 0"
             >
               <span v-if="isGenerating" class="loading-text">
                 生成中
@@ -183,7 +183,7 @@
       </div>
     </div>
 
-    <!-- 专属题库面板 -->
+    <!-- 错题本面板 -->
     <div class="question-bank-overlay" v-if="showQuestionBank">
       <div class="question-bank-panel">
         <div class="question-bank-header">
@@ -215,7 +215,7 @@
                 <span class="set-label"
                   >第 {{ currentSkillQuestionSets.length - displayIndex }} 组</span
                 >
-                <span class="set-dimensions">{{ questionSet.dimensions.join('、') }}</span>
+                <span class="set-dimensions">{{ getQuestionSetTitle(questionSet) }}</span>
                 <span class="set-count">{{ questionSet.questions.length }} 道题</span>
               </div>
             </div>
@@ -231,9 +231,7 @@
                 <span class="set-label"
                   >第 {{ currentSkillQuestionSets.length - selectedSetIndex }} 组</span
                 >
-                <span class="set-dimensions">{{
-                  currentSelectedQuestionSet?.dimensions.join('、')
-                }}</span>
+                <span class="set-dimensions">{{ currentSelectedQuestionSet ? getQuestionSetTitle(currentSelectedQuestionSet) : '' }}</span>
                 <span class="set-count"
                   >{{ currentSelectedQuestionSet?.questions.length }} 道题</span
                 >
@@ -241,15 +239,45 @@
               <div class="question-set-questions" v-if="currentSelectedQuestionSet">
                 <div
                   class="question-item"
-                  v-for="(question, qIndex) in (currentSelectedQuestionSet as QuestionSet)
-                    .questions"
+                  v-for="(question, qIndex) in [
+                    ...(currentSelectedQuestionSet as QuestionSet).questions,
+                  ].sort((a, b) => {
+                    const typeA = a.type || ''
+                    const typeB = b.type || ''
+                    return typeA === 'judgment' ? -1 : typeB === 'judgment' ? 1 : 0
+                  })"
                   :key="qIndex"
                 >
                   <div class="question-text">
-                    <span class="question-number">{{ question.number }}.</span>
-                    {{ question.question.stem }}
+                    <span v-html="(question.stem || '').replace(/\\n/g, '<br>')"></span>
                   </div>
                   <div class="question-options">
+                    <!-- 判断题：没有选项时显示正确/错误 -->
+                    <template v-if="!question.options?.length">
+                      <div
+                        class="option-item"
+                        :class="{
+                          'user-selected':
+                            !isSetSubmitted(selectedSetIndex) &&
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] === option,
+                          correct:
+                            isSetSubmitted(selectedSetIndex) &&
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] === option &&
+                            option === question.answer,
+                          wrong:
+                            isSetSubmitted(selectedSetIndex) &&
+                            answeredQuestions[`${selectedSetIndex}-${qIndex}`] === option &&
+                            option !== question.answer,
+                        }"
+                        v-for="option in ['正确', '错误']"
+                        :key="option"
+                        @click="handleOptionClick(selectedSetIndex, qIndex, option)"
+                      >
+                        <span class="option-label">{{ option === '正确' ? 'A' : 'B' }}</span>
+                        <span class="option-text">{{ option }}</span>
+                      </div>
+                    </template>
+                    <!-- 选择题：正常显示选项 -->
                     <div
                       class="option-item"
                       :class="{
@@ -263,22 +291,23 @@
                           getOptionLetter(
                             answeredQuestions[`${selectedSetIndex}-${qIndex}`] || '',
                           ) === getOptionLetter(option) &&
-                          getOptionLetter(option) ===
-                            getOptionLetter(question.question.answer || ''),
+                          getOptionLetter(option) === getOptionLetter(question.answer || ''),
                         wrong:
                           isSetSubmitted(selectedSetIndex) &&
                           getOptionLetter(
                             answeredQuestions[`${selectedSetIndex}-${qIndex}`] || '',
                           ) === getOptionLetter(option) &&
-                          getOptionLetter(option) !==
-                            getOptionLetter(question.question.answer || ''),
+                          getOptionLetter(option) !== getOptionLetter(question.answer || ''),
                       }"
-                      v-for="(option, oIndex) in question.question.options"
+                      v-for="(option, oIndex) in question.options || []"
                       :key="oIndex"
-                      @click="handleOptionClick(selectedSetIndex, qIndex, option, question)"
+                      @click="handleOptionClick(selectedSetIndex, qIndex, option)"
                     >
                       <span class="option-label">{{ String.fromCharCode(65 + oIndex) }}</span>
-                      <span class="option-text">{{ option }}</span>
+                      <span
+                        class="option-text"
+                        v-html="(option || '').replace(/\\n/g, '<br>')"
+                      ></span>
                     </div>
                   </div>
                   <!-- 收藏星星 -->
@@ -293,6 +322,21 @@
                         d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
                       />
                     </svg>
+                  </div>
+                  <!-- 答案解析（提交后显示） -->
+                  <div
+                    class="question-explanation"
+                    v-if="isSetSubmitted(selectedSetIndex) && question.explanation"
+                  >
+                    <div
+                      class="explanation-content"
+                      v-html="question.explanation.replace(/\\n/g, '<br>')"
+                    ></div>
+                    <div
+                      class="code-snippet"
+                      v-if="question.code_snippet"
+                      v-html="question.code_snippet.replace(/\\n/g, '<br>')"
+                    ></div>
                   </div>
                 </div>
                 <div class="set-footer">
@@ -354,7 +398,6 @@ import {
   generateQuestions as generateQuestionsApi,
   getUserSelectedSkills,
   type GenerateQuestionsResponse,
-  type GeneratedQuestion,
 } from '@/api/agent'
 import type { SkillResult } from '@/stores/skillResults'
 
@@ -400,7 +443,6 @@ async function fetchUserSelectedSkills() {
   if (!userId) return
   // Pinia 中已有技能数据，不重复请求
   if (Object.keys(skillResultsStore.skillResults).length > 0) {
-    console.log('Pinia 已有技能数据，跳过请求')
     return
   }
   try {
@@ -433,9 +475,9 @@ async function fetchUserSelectedSkills() {
       }
     }
     skillResultsStore.setSkillResults(skillResultsData)
-    console.log('已加载用户已选技能到 Pinia')
   } catch (e) {
-    console.error('获取已选技能失败:', e)
+    console.error('获取用户已选技能失败', e)
+    // 获取已选技能失败
   }
 }
 
@@ -446,10 +488,6 @@ onMounted(async () => {
 
 // 生成中状态
 const isGenerating = ref(false)
-
-// 追踪哪个按钮正在生成
-const isGeneratingJob = ref<number>(-1)
-const isGeneratingSkill = ref<number>(-1)
 
 // 弹窗显示状态
 const showDialog = ref(false)
@@ -515,10 +553,9 @@ function addToWrongBook(setIndex: number) {
   const wrongQuestions = questionSet.questions.filter((q, qIndex) => {
     const key = `${setIndex}-${qIndex}`
     const userAnswer = answeredQuestions.value[key]
-    return userAnswer && getOptionLetter(userAnswer) !== getOptionLetter(q.question.answer || '')
+    return userAnswer && getOptionLetter(userAnswer) !== getOptionLetter(q.answer || '')
   })
 
-  console.log('加入错题本的题目:', wrongQuestions)
   alert(`已将 ${wrongQuestions.length} 道错题加入错题本`)
 }
 
@@ -531,7 +568,7 @@ function isQuestionWrong(
   const key = `${setIndex}-${qIndex}`
   const userAnswer = answeredQuestions.value[key]
   if (!userAnswer) return false
-  return getOptionLetter(userAnswer) !== getOptionLetter(question.question.answer || '')
+  return getOptionLetter(userAnswer) !== getOptionLetter(question.answer || '')
 }
 
 // 切换题目收藏状态
@@ -568,7 +605,7 @@ function getSetAccuracy(questionSet: QuestionSet, setIndex: number): string {
   questionSet.questions.forEach((q, qIndex: number) => {
     const key = `${setIndex}-${qIndex}`
     const userAnswer = answeredQuestions.value[key]
-    if (userAnswer && getOptionLetter(userAnswer) === getOptionLetter(q.question.answer || '')) {
+    if (userAnswer && getOptionLetter(userAnswer) === getOptionLetter(q.answer || '')) {
       correctCount++
     }
   })
@@ -603,6 +640,42 @@ const currentSkillDimensions = computed(() => {
   return []
 })
 
+// 获取题库面板当前技能的总知识点维度数
+function getCurrentSkillTotalDimensions(): number {
+  const career = filteredCareers.value[questionBankJobIndex.value]
+  if (!career) return 0
+
+  const jobName = career.name
+  const skillName = career.skills[questionBankSkillIndex.value]?.name
+  if (!skillName) return 0
+
+  const knowledgeData = skillKnowledgeStore.skillKnowledgeData
+  if (knowledgeData?.job_name === jobName && knowledgeData?.skill_name === skillName) {
+    return knowledgeData.dimensions.length
+  }
+  const results = skillResultsStore.skillResults[jobName]
+  if (results) {
+    const found = results.find((s) => s.skill_name === skillName)
+    if (found) return found.dimensions.length
+  }
+  return 0
+}
+
+// 获取题目集合的显示标题
+function getQuestionSetTitle(questionSet: QuestionSet): string {
+  const total = getCurrentSkillTotalDimensions()
+  const selected = questionSet.dimensions.length
+  const ratio = total > 0 ? selected / total : 0
+
+  if (ratio > 0.8) {
+    return '综合测试'
+  } else if (ratio < 0.3) {
+    return `${questionSet.dimensions.join('、')}特训`
+  } else {
+    return '综合小测'
+  }
+}
+
 // 关闭弹窗
 function closeDialog() {
   showDialog.value = false
@@ -610,14 +683,14 @@ function closeDialog() {
   isGenerating.value = false
 }
 
-// 打开专属题库
+// 打开错题本
 function openQuestionBank(cIndex: number, sIndex: number) {
   questionBankJobIndex.value = cIndex
   questionBankSkillIndex.value = sIndex
   showQuestionBank.value = true
 }
 
-// 关闭专属题库
+// 关闭错题本
 function closeQuestionBank() {
   showQuestionBank.value = false
   questionBankJobIndex.value = -1
@@ -633,12 +706,7 @@ function selectQuestionSet(setIndex: number) {
 }
 
 // 处理选项点击（用户答题）
-function handleOptionClick(
-  setIndex: number,
-  qIndex: number,
-  option: string,
-  question: GeneratedQuestion,
-) {
+function handleOptionClick(setIndex: number, qIndex: number, option: string) {
   // 如果已提交，不能修改
   if (isSetSubmitted(setIndex)) return
   const key = `${setIndex}-${qIndex}`
@@ -650,18 +718,11 @@ function handleOptionClick(
     // 去除首尾空白
     answeredQuestions.value[key] = trimmedOption
   }
-  console.log('答题调试:', {
-    key,
-    selectedOption: option,
-    selectedLetter: getOptionLetter(option),
-    correctAnswer: question.question.answer,
-    isCorrect: getOptionLetter(option) === getOptionLetter(question.question.answer || ''),
-  })
 }
 
-// 跳转到题目页面
+// 跳转到错题页面
 function goToQuestion() {
-  router.push({ name: 'user-question' })
+  router.push({ name: 'user-wrong' })
 }
 
 // 处理生成按钮点击
@@ -703,11 +764,6 @@ const currentSkillQuestionSets = computed(() => {
   const skillName = career.skills[questionBankSkillIndex.value]?.name
   if (!skillName) return []
 
-  // 调试：检查 store 中的所有 key
-  const key = `${career.name}::${skillName}`
-  console.log('查询key:', key)
-  console.log('所有keys:', Object.keys(questionsStore.questionSetsByKey))
-  console.log('store数据:', questionsStore.questionSetsByKey)
   return questionsStore.getQuestionSetsBySkillAndJob(career.name, skillName)
 })
 
@@ -745,9 +801,8 @@ async function handleGenerateQuestions() {
   }
   const userId = playerStore.playerInfo.id
 
-  // 记录正在生成的位置，显示在AI智能出题按钮上
-  isGeneratingJob.value = currentJobIndex.value
-  isGeneratingSkill.value = currentSkillIndex.value
+  // 设置正在生成状态（持久化到localStorage，刷新页面也能恢复）
+  questionsStore.setGenerating(career.name, skill.name)
 
   // 根据选中的索引从原始数据获取完整的二维数组
   const fullDimensions = currentSkillDimensions.value.filter((_, index) =>
@@ -766,23 +821,17 @@ async function handleGenerateQuestions() {
       user_id: userId,
     })
 
+    // 延迟500ms再处理响应
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
     if (response.code === 200 && response.data) {
       // response.data 是 JSON 字符串，需要先解析
-      console.log('原始响应:', response.data)
       const parsedData = JSON.parse(response.data as string) as GenerateQuestionsResponse
-      console.log('解析后数据:', parsedData)
 
       if (parsedData.success && parsedData.data) {
         // 添加题目集合到 store
         const selectedNames = fullDimensions.map((dim) => dim[0]).filter(Boolean) as string[]
-        console.log('添加到store:', {
-          jobName: career.name,
-          skillName: skill.name,
-          selectedNames,
-          questionCount: parsedData.data.length,
-        })
         questionsStore.addQuestionSet(career.name, skill.name, selectedNames, parsedData.data)
-        console.log('store当前数据:', questionsStore.questionSetsByKey)
         alert(`已生成 ${parsedData.data.length} 道题目：${selectedNames.join('、')}`)
       } else {
         alert(parsedData.message || '生成题目失败')
@@ -791,12 +840,10 @@ async function handleGenerateQuestions() {
       alert(response.message || '生成题目失败')
     }
   } catch (error) {
-    console.error('生成题目失败:', error)
-    alert('生成题目失败，请重试')
+    alert('生成题目失败，请重试' + error)
   } finally {
-    // 恢复按钮状态
-    isGeneratingJob.value = -1
-    isGeneratingSkill.value = -1
+    // 清除生成状态
+    questionsStore.clearGenerating()
   }
 }
 </script>
@@ -1356,7 +1403,7 @@ async function handleGenerateQuestions() {
   cursor: not-allowed;
 }
 
-/* ========= 专属题库面板 ========= */
+/* ========= 错题本面板 ========= */
 .question-bank-overlay {
   position: fixed;
   top: 0;
@@ -1372,7 +1419,7 @@ async function handleGenerateQuestions() {
 }
 
 .question-bank-panel {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%);
   width: 65vw;
   max-width: 900px;
   height: 80vh;
@@ -1383,7 +1430,7 @@ async function handleGenerateQuestions() {
   animation: slideIn 0.3s ease-out;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(46, 196, 182, 0.1);
 }
 
 .question-bank-header {
@@ -1448,7 +1495,7 @@ async function handleGenerateQuestions() {
 }
 
 .question-set-group:hover {
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 4px 16px rgba(46, 196, 182, 0.15);
 }
 
 .question-set-header {
@@ -1463,24 +1510,24 @@ async function handleGenerateQuestions() {
 }
 
 .question-set-header:hover {
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 100%);
+  border-left-color: #2ec4b6;
 }
 
 .question-set-header.expanded {
-  background: linear-gradient(135deg, #eff6ff 0%, #f0f7ff 100%);
-  border-left-color: #3b82f6;
-  border-bottom: 1px solid #e0e7ff;
+  background: linear-gradient(135deg, #f0fdfa 0%, #f0fdfa 100%);
+  border-left-color: #2ec4b6;
+  border-bottom: 1px solid #ccfbf1;
 }
 
 .set-label {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #3b82f6;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #2ec4b6;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
   padding: 0.4rem 1rem;
   border-radius: 8px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #99f6e4;
 }
 
 .set-dimensions {
@@ -1501,9 +1548,9 @@ async function handleGenerateQuestions() {
 
 .expand-icon {
   font-size: 0.9rem;
-  color: #3b82f6;
+  color: #2ec4b6;
   transition: transform 0.3s ease;
-  background: #eff6ff;
+  background: #f0fdfa;
   width: 24px;
   height: 24px;
   display: flex;
@@ -1565,7 +1612,7 @@ async function handleGenerateQuestions() {
 
 .btn-submit-set {
   padding: 0.6rem 1.5rem;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #2ec4b6 0%, #20a89a 100%);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1573,12 +1620,12 @@ async function handleGenerateQuestions() {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(46, 196, 182, 0.3);
 }
 
 .btn-submit-set:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 12px rgba(46, 196, 182, 0.4);
 }
 
 .btn-submit-set:disabled {
@@ -1633,6 +1680,34 @@ async function handleGenerateQuestions() {
 .star-icon.filled svg {
   fill: #f59e0b;
   stroke: #f59e0b;
+}
+
+/* ========= 答案解析 ========= */
+.question-explanation {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+
+.explanation-content {
+  font-size: 0.9rem;
+  color: #166534;
+  line-height: 1.6;
+}
+
+.code-snippet {
+  margin-top: 0.8rem;
+  padding: 0.8rem 1rem;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
 }
 
 /* ========= 返回题库按钮 ========= */
@@ -1833,14 +1908,14 @@ async function handleGenerateQuestions() {
   gap: 1rem;
   padding: 1rem 1.2rem;
   background: var(--bg-card);
-  border: 1px solid rgba(46, 196, 182, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 10px;
   transition: all 0.3s;
 }
 
 .wrong-book-card:hover {
-  border-color: var(--accent-teal);
-  box-shadow: 0 8px 30px rgba(46, 196, 182, 0.15);
+  border-color: #ef4444;
+  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.15);
 }
 
 .wrong-book-icon {
@@ -1849,7 +1924,7 @@ async function handleGenerateQuestions() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(46, 196, 182, 0.15);
+  background: rgba(239, 68, 68, 0.15);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -1857,7 +1932,7 @@ async function handleGenerateQuestions() {
 .wrong-book-icon svg {
   width: 20px;
   height: 20px;
-  color: var(--accent-teal);
+  color: #ef4444;
 }
 
 .wrong-book-info {
@@ -1878,7 +1953,7 @@ async function handleGenerateQuestions() {
 }
 
 .total-wrong {
-  color: var(--accent-teal);
+  color: #ef4444;
   font-weight: 600;
 }
 
@@ -1887,16 +1962,15 @@ async function handleGenerateQuestions() {
   font-size: 0.85rem;
   font-weight: 600;
   background: transparent;
-  border: 1px solid var(--accent-teal);
-  color: var(--accent-teal);
+  border: 1px solid #ef4444;
+  color: #ef4444;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  flex-shrink: 0;
 }
 
 .btn-wrong-book:hover {
-  background: var(--accent-teal);
+  background: #ef4444;
   color: var(--bg-dark);
   transform: scale(1.02);
 }

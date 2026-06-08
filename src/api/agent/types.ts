@@ -165,20 +165,27 @@ export interface UserLearningProgress {
   jobName: string
 }
 
-// 题目详情
-export interface QuestionDetail {
-  type: string // 题目类型，如 "choice"
+// 知识点数据项
+export interface KnowledgePointData {
+  skillName: string
+  knowledgeName: string
+  content: string
+  jobName: string
+}
+
+// 获取用户知识点数据响应
+export interface GetUserKnowledgeDataResponse {
+  knowledgePoints: KnowledgePointData[]
+}
+
+// 生成的题目项（扁平格式）
+export interface GeneratedQuestion {
+  type: string // 题目类型，如 "choice" / "judgment"
   stem: string // 题干
   options: string[] // 选项列表
   answer: string // 正确答案
   explanation: string // 答案解析
   code_snippet: string // 代码片段
-}
-
-// 生成的题目项
-export interface GeneratedQuestion {
-  number: number
-  question: QuestionDetail
 }
 
 // 生成专属题目响应（后端返回的是JSON字符串）

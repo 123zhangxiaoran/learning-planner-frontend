@@ -254,7 +254,9 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import NavBar from '@/components/layout/NavBar.vue'
 import { usePlayerStore } from '@/stores/user'
 import { useCareerStore } from '@/stores/career'
-import { getUserJobData } from '@/api/agent'
+import { useSkillResultsStore } from '@/stores/skillResults'
+import { getUserJobData, getUserSelectedSkills, getUserKnowledgeData, type UserLearningProgress } from '@/api/agent'
+import type { SkillResult } from '@/stores/skillResults'
 
 // ======================== 反AI彩蛋 ========================
 const quotes = [
@@ -325,6 +327,7 @@ function handleMouseMove(e: MouseEvent) {
 // ======================== 恢复岗位数据 ========================
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
+const skillResultsStore = useSkillResultsStore()
 
 async function restoreUserData() {
   if (careerStore.selectedJobNames.length > 0) return
@@ -333,6 +336,7 @@ async function restoreUserData() {
   if (!userId) return
 
   try {
+    // 获取岗位数据
     const res = await getUserJobData(userId)
     if (res.code === 200 && res.data) {
       const data = JSON.parse(res.data as unknown as string)
@@ -341,8 +345,55 @@ async function restoreUserData() {
         careerStore.setJobNames(jobNames)
       }
     }
+
+    // 获取用户已选技能（缓存优先）
+    if (Object.keys(skillResultsStore.skillResults).length === 0) {
+      const skillsRes = await getUserSelectedSkills(userId)
+      const list = skillsRes.data
+      if (list && Array.isArray(list) && list.length > 0) {
+        // 按 jobName → skillName 分组
+        const skillMap: Record<string, Record<string, { name: string; score: number }[]>> = {}
+        for (const item of list) {
+          let jobMap = skillMap[item.jobName]
+          if (!jobMap) {
+            jobMap = {}
+            skillMap[item.jobName] = jobMap
+          }
+          const knowledgeList = jobMap[item.skillName] ?? []
+          knowledgeList.push({ name: item.knowledgeName, score: item.score })
+          jobMap[item.skillName] = knowledgeList
+        }
+
+        // 转换为 SkillResult 格式写入 Pinia（持久化）
+        const skillResultsData: Record<string, SkillResult[]> = {}
+        for (const [jobName, skills] of Object.entries(skillMap)) {
+          const skillList: SkillResult[] = []
+          skillResultsData[jobName] = skillList
+          for (const [skillName, knowledgeList] of Object.entries(skills)) {
+            const dimensions = knowledgeList.map((k) => [k.name])
+            const avgScore = knowledgeList.reduce((sum, k) => sum + k.score, 0) / knowledgeList.length
+            skillList.push({ skill_name: skillName, score: avgScore, dimensions })
+          }
+        }
+        skillResultsStore.setSkillResults(skillResultsData)
+
+        // 知识点评分写入 Pinia 持久化
+        const newScores: Record<string, number> = {}
+        for (const item of list) {
+          newScores[`${item.skillName}::${item.knowledgeName}`] = item.score
+        }
+        skillResultsStore.setKnowledgeScores(newScores)
+      }
+    }
+
+    // 获取用户知识点数据（缓存优先）
+    const knowledgeRes = await getUserKnowledgeData(userId)
+    if (knowledgeRes.code === 200 && knowledgeRes.data) {
+      // 知识点数据存入 Pinia 或本地处理
+      console.log('获取到知识点数据:', knowledgeRes.data.knowledgePoints)
+    }
   } catch (e) {
-    console.warn('恢复岗位名称失败:', e)
+    console.warn('恢复数据失败:', e)
   }
 }
 

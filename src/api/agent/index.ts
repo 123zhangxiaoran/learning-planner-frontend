@@ -19,6 +19,7 @@ import type {
   GenerateQuestionsRequest,
   GenerateQuestionsResponse,
   GeneratedQuestion,
+  GetUserKnowledgeDataResponse,
 } from './types'
 
 export function sendChatMessage(
@@ -136,6 +137,14 @@ export function getUserSelectedSkills(userId: number): Promise<ApiResponse<UserL
   })
 }
 
+// 根据用户ID获取知识点数据（GET）
+export function getUserKnowledgeData(userId: number): Promise<ApiResponse<GetUserKnowledgeDataResponse>> {
+  return request<GetUserKnowledgeDataResponse>({
+    url: `/user/userKnowledgeData/${userId}`,
+    method: 'get',
+  })
+}
+
 // 页面数据汇总上报（5秒自动触发一次）
 export function reportPageData(
   data: ReportPageDataRequest,
@@ -147,7 +156,7 @@ export function reportPageData(
   })
 }
 
-// 生成专属题目
+// 生成专属题目（耗时操作，设置5分钟超时）
 export function generateQuestions(
   data: GenerateQuestionsRequest,
 ): Promise<ApiResponse<string>> {
@@ -155,6 +164,7 @@ export function generateQuestions(
     url: '/agent/generateQuestions',
     method: 'post',
     data,
+    timeout: 300000, // 5分钟超时
   })
 }
 
