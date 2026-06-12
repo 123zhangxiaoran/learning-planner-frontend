@@ -613,8 +613,7 @@ async function handlePwdLogin(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    await nextTick()
-    router.replace('/')
+    setTimeout(() => router.replace('/'), 0)
   } catch (err) {
     console.log('登录失败', err)
     alert('登录失败: ' + err)
@@ -674,8 +673,7 @@ async function handleSmsLogin(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    await nextTick()
-    router.replace('/')
+    setTimeout(() => router.replace('/'), 0)
   } catch (err) {
     console.log(err)
   } finally {
@@ -741,6 +739,7 @@ async function handleRegister(): Promise<void> {
     //确认密码格式验证
     if (res.code === ResponseCode.REPASSWORD_INVALID) {
       registerError.value.confirmPwd = res.message
+      hasError = true
     } else if (res.code === ResponseCode.PASSWORD_MISMATCH) {
       //两次密码不一致
       registerError.value.confirmPwd = res.message
@@ -769,9 +768,10 @@ async function handleRegister(): Promise<void> {
 
     playerStore.setPlayerInfo(res.data)
     playerStore.setAccessToken(res.data.accessToken)
-    await nextTick()
-    router.replace('/')
-    registerForm.value = { mobile: '', password: '', confirmPwd: '', code: '' }
+    setTimeout(() => {
+      router.replace('/')
+      registerForm.value = { mobile: '', password: '', confirmPwd: '', code: '' }
+    }, 0)
   } catch (err) {
     console.log(err)
   } finally {

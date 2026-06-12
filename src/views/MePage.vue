@@ -18,6 +18,26 @@
       <rect width="100%" height="100%" fill="url(#grid)" />
     </svg>
 
+    <!-- 删除成功提示弹窗 -->
+    <Transition name="toast">
+      <div class="toast-overlay" v-if="showDeleteToast" @click.self="showDeleteToast = false">
+        <div class="toast-panel success">
+          <div class="toast-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <span class="toast-message">技能 "{{ deletedSkillName }}" 已删除</span>
+          <button class="toast-close" @click="showDeleteToast = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 顶部导航栏 - 复用组件 -->
     <NavBar />
 
@@ -88,7 +108,7 @@
                       >
                         <div class="dimension-name">
                           <span class="dimension-label">{{ dimGroup[0] }}</span>
-                          <template v-if="!scoresLoaded">
+                          <template v-if="!reportPageStore.isLoaded">
                             <span class="knowledge-score is-loading">
                               <WaveLoading />
                             </span>
@@ -113,7 +133,7 @@
                       <div class="dimension-title">暂无知识点数据</div>
                     </div>
                   </details>
-                  <span class="btn-delete-skill">删除</span>
+                  <span class="btn-delete-skill" @click="handleDeleteSkill(skill, job)">删除</span>
                 </div>
               </div>
               <div v-else class="knowledge-list">
@@ -135,24 +155,27 @@ import GeoAvatar from '@/components/layout/GeoAvatar.vue'
 import WaveLoading from '@/components/layout/WaveLoading.vue'
 import { onMounted, ref } from 'vue'
 import { usePlayerStore } from '@/stores/user'
+import { useCareerStore } from '@/stores/career'
+import { useSkillResultsStore } from '@/stores/skillResults'
+import { useUserQuestionsStore } from '@/stores/userQuestions'
+import { useReportPageStore } from '@/stores/reportPage'
+import type { SkillResult } from '@/stores/skillResults'
+import { reportPageData, getUserSelectedSkills, deleteUserSkill } from '@/api/agent'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { logout } from '@/api/user'
-import { useCareerStore } from '@/stores/career'
-import { useSkillResultsStore } from '@/stores/skillResults'
-import { useQuestionsStore } from '@/stores/questions'
-import type { SkillResult } from '@/stores/skillResults'
-import { reportPageData, getUserSelectedSkills } from '@/api/agent'
 
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
-const questionsStore = useQuestionsStore()
+const userQuestionsStore = useUserQuestionsStore()
+const reportPageStore = useReportPageStore()
 const router = useRouter()
 
-// 后端评分（reactive 渲染状态，不持久化）
-const knowledgeScores = ref<Record<string, number>>({})
-const scoresLoaded = ref(false)
+// 删除成功弹窗状态
+const showDeleteToast = ref(false)
+const deletedSkillName = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 // 退出登录
 function goToWrongQuestion() {
@@ -177,8 +200,10 @@ function handleLogout() {
       careerStore.clearJobNames()
       // 清除技能学习结果
       skillResultsStore.clearAll()
-      // 清除题目数据
-      questionsStore.clearAllQuestions()
+      // 清除用户题目数据
+      userQuestionsStore.clearUserQuestions()
+      // 清除报告页面数据
+      reportPageStore.clearReportData()
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })
@@ -194,14 +219,27 @@ function getJobSkills(jobName: string): SkillResult[] {
 
 // 获取技能下指定知识点的评分（先查后端返回数据，再兜底技能整体评分）
 function getKnowledgeScore(skillName: string, knowledgeName: string): number | null {
-  if (!scoresLoaded.value) return null
-  const key = `${skillName}::${knowledgeName}`
-  if (knowledgeScores.value[key] !== undefined) {
-    return knowledgeScores.value[key]
+  if (!reportPageStore.isLoaded) return null
+
+  // 构建 orderIndex
+  const orderIndex: Record<number, { skill: string; knowledge: string }> = {}
+  let order = 1
+  for (const jobName of careerStore.selectedJobNames) {
+    const skillResults = getJobSkills(jobName)
+    for (const skill of skillResults) {
+      if (!skill.dimensions || skill.dimensions.length === 0) continue
+
+      for (const dimGroup of skill.dimensions) {
+        if (dimGroup.length > 0) {
+          orderIndex[order] = { skill: skill.skill_name, knowledge: dimGroup[0]! }
+          order++
+        }
+      }
+    }
   }
-  const allSkills = careerStore.selectedJobNames.flatMap((name) => getJobSkills(name))
-  const skill = allSkills.find((s) => s.skill_name === skillName)
-  return skill?.score ?? null
+
+  // 从 store 中获取分数
+  return reportPageStore.getScoreByKnowledge(skillName, knowledgeName, orderIndex)
 }
 
 // 根据分数返回对应的等级样式
@@ -249,24 +287,11 @@ async function sendReport() {
     const res = await reportPageData({ userid: userId, skills })
     // 按 order 映射回 skill_name::knowledge_name
     if (res.data?.scores) {
-      const orderIndex: Record<number, { skill: string; knowledge: string }> = {}
-      for (const s of skills) {
-        for (const item of s.items) {
-          orderIndex[item.order] = { skill: s.skill_name, knowledge: item.knowledge_name }
-        }
-      }
-      const newScores: Record<string, number> = {}
-      for (const entry of res.data.scores) {
-        const info = orderIndex[entry.order]
-        if (info) {
-          newScores[`${info.skill}::${info.knowledge}`] = entry.score
-        }
-      }
-      knowledgeScores.value = newScores
+      // 直接将数据存储到 Pinia store
+      reportPageStore.setReportData({ userid: userId, scores: res.data.scores })
       // 重新计算每个技能的平均分写入 Pinia
       recalcSkillAverages()
     }
-    scoresLoaded.value = true
   }
 }
 
@@ -276,9 +301,6 @@ async function fetchUserSelectedSkills() {
   if (!userId) return
   // Pinia 中已有技能数据，不重复请求
   if (Object.keys(skillResultsStore.skillResults).length > 0) {
-    // 用 Pinia 中的知识点评分初始化本地 ref
-    knowledgeScores.value = { ...skillResultsStore.knowledgeScores }
-    scoresLoaded.value = true
     return
   }
   try {
@@ -312,22 +334,48 @@ async function fetchUserSelectedSkills() {
     }
     skillResultsStore.setSkillResults(skillResultsData)
 
-    // 知识点评分写入 Pinia 持久化 + 本地 ref 显示
+    // 知识点评分写入 Pinia 持久化
     const newScores: Record<string, number> = {}
     for (const item of list) {
       newScores[`${item.skillName}::${item.knowledgeName}`] = item.score
     }
     skillResultsStore.setKnowledgeScores(newScores)
-    knowledgeScores.value = newScores
-    scoresLoaded.value = true
   } catch (e) {
     console.error('获取已选技能失败:', e)
   }
 }
 
-// 遍历所有技能，从 knowledgeScores 计算平均分写入 Pinia
+// 遍历所有技能，从 reportPageStore 计算平均分写入 Pinia
 function recalcSkillAverages() {
-  const scores = knowledgeScores.value
+  if (!reportPageStore.reportData?.scores) return
+
+  // 构建 orderIndex
+  const orderIndex: Record<number, { skill: string; knowledge: string }> = {}
+  let order = 1
+  for (const jobName of careerStore.selectedJobNames) {
+    const skillResults = getJobSkills(jobName)
+    for (const skill of skillResults) {
+      if (!skill.dimensions || skill.dimensions.length === 0) continue
+
+      for (const dimGroup of skill.dimensions) {
+        if (dimGroup.length > 0) {
+          orderIndex[order] = { skill: skill.skill_name, knowledge: dimGroup[0]! }
+          order++
+        }
+      }
+    }
+  }
+
+  // 从 orderIndex 和 reportPageStore 中构建 knowledgeScores
+  const scores: Record<string, number> = {}
+  for (const entry of reportPageStore.reportData.scores) {
+    const info = orderIndex[entry.order]
+    if (info) {
+      scores[`${info.skill}::${info.knowledge}`] = entry.score
+    }
+  }
+
+  // 计算每个技能的平均分
   for (const skills of Object.values(skillResultsStore.skillResults)) {
     for (const skill of skills) {
       if (!skill.dimensions || skill.dimensions.length === 0) continue
@@ -345,6 +393,59 @@ function recalcSkillAverages() {
       skill.score = count > 0 ? sum / count : 0
     }
   }
+}
+
+// 删除技能（二次确认 + 调用后端接口）
+async function handleDeleteSkill(skill: SkillResult, jobName: string) {
+  ElMessageBox.confirm(`确定要删除技能 "${skill.skill_name}" 吗？`, '确认删除', {
+    confirmButtonText: '确定删除',
+    cancelButtonText: '取消',
+    type: 'warning',
+    confirmButtonClass: 'el-button--danger',
+  })
+    .then(async () => {
+      const userId = playerStore.playerInfo?.id
+      if (!userId) return
+
+      try {
+        // 调用后端删除接口
+        const res = await deleteUserSkill({
+          user_id: userId,
+          skill_name: skill.skill_name,
+          job_name: jobName,
+        })
+
+        // 根据返回 code 判断
+        if (res.code === 200) {
+          // 接口成功，删除本地数据
+          skillResultsStore.removeSkillResult(skill, jobName)
+          // 显示删除成功弹窗
+          deletedSkillName.value = skill.skill_name
+          showDeleteToast.value = true
+          // 3秒后自动关闭
+          if (toastTimer) clearTimeout(toastTimer)
+          toastTimer = setTimeout(() => {
+            showDeleteToast.value = false
+          }, 3000)
+        } else {
+          // 接口返回非200，显示请重试
+          ElMessageBox.alert('删除失败，请重试', '提示', {
+            confirmButtonText: '确定',
+            type: 'error',
+          })
+        }
+      } catch (error) {
+        console.error('删除技能失败:', error)
+        // 请求异常，显示请重试
+        ElMessageBox.alert('删除失败，请重试', '提示', {
+          confirmButtonText: '确定',
+          type: 'error',
+        })
+      }
+    })
+    .catch(() => {
+      // 用户取消删除
+    })
 }
 
 // 页面加载先请求数据，之后每60秒刷新
@@ -1123,6 +1224,131 @@ onMounted(async () => {
   .knowledge-link {
     font-size: 0.7rem;
     padding: 0.2rem 0.5rem;
+  }
+}
+
+/* ========= 删除成功轻量级提示弹窗 ========= */
+.toast-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 5rem;
+  pointer-events: none;
+}
+
+.toast-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.2rem;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  max-width: 360px;
+  pointer-events: auto;
+}
+
+.toast-panel.success {
+  border-left: 4px solid #10b981;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: #10b981;
+}
+
+.toast-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toast-close:hover {
+  background: #e5e7eb;
+}
+
+.toast-close svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+}
+
+/* 弹窗动画 - 从下方弹入，向上滑出消失 */
+.toast-enter-active {
+  animation: toast-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toast-leave-active {
+  animation: toast-out 0.3s ease-in forwards;
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(60px) scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-80px) scale(0.9);
+  }
+}
+
+@media (max-width: 768px) {
+  .toast-overlay {
+    padding-top: 3rem;
+  }
+
+  .toast-panel {
+    margin: 0 1rem;
+    padding: 0.8rem 1rem;
+  }
+
+  .toast-message {
+    font-size: 0.9rem;
   }
 }
 </style>

@@ -391,7 +391,7 @@
 <script setup lang="ts">
 import NavBar from '@/components/layout/NavBar.vue'
 import AIDialog from '@/components/ai/AIDialog.vue'
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
@@ -429,6 +429,38 @@ const initCollapsedJobs = () => {
     collapsedJobs.value = skillOptions.value.map((job) => job.id)
   } else {
     collapsedJobs.value = []
+  }
+}
+
+// 恢复时自动调用接口获取技能知识点
+const restoreSkillKnowledgePoints = async () => {
+  // 只有从 sessionStorage 恢复了技能状态时，才调用接口
+  if (selectedSkills.value.length === 0) return
+
+  const selectedSkillName = selectedSkills.value[0]!
+  const jobWithSkill = skillOptions.value.find((job) =>
+    job.skillList.some((skill) => skill.name === selectedSkillName),
+  )
+  const jobName = jobWithSkill ? jobWithSkill.name : ''
+
+  try {
+    const res = await fetchSkillKnowledgePoints(
+      selectedSkillName,
+      jobName,
+      playerStore.playerInfo?.id || 0,
+    )
+    if (res.code === 200 && res.data) {
+      const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+      if (responseData.skill_name && responseData.dimensions) {
+        skillKnowledgeStore.setSkillKnowledge({
+          skill_name: responseData.skill_name,
+          job_name: responseData.job_name,
+          dimensions: responseData.dimensions,
+        })
+      }
+    }
+  } catch (error) {
+    console.error('恢复时获取技能知识点失败:', error)
   }
 }
 
@@ -496,12 +528,70 @@ const confirmSkill = async () => {
 
     isSkillConfirmed.value = true
     hasEverConfirmed.value = true
-    chatRecords.value.push({
-      userMessage: '',
-      aiReply: '小顾问帮你评估知识战力',
-      options: ['纯小白，完全不懂', '有点基础，来考考我吧'],
-    })
-    scrollToBottom()
+
+    // 直接开始生成PPT，不再弹出选择按钮
+    const knowledgeData = skillKnowledgeStore.skillKnowledgeData
+    const userId = playerStore.playerInfo?.id
+
+    if (knowledgeData && userId) {
+      // 添加生成中的消息
+      chatRecords.value.push({
+        userMessage: '',
+        aiReply: '小顾问正在生成学习规划中....',
+      })
+      scrollToBottom()
+
+      try {
+        const res = await generateLearningPath({
+          skill_name: knowledgeData.skill_name,
+          job_name: knowledgeData.job_name,
+          dimensions: knowledgeData.dimensions,
+          user_id: userId,
+          userinput: '帮我生成一份ppt',
+        })
+        if (res.code === 200 && res.data) {
+          const parsed = JSON.parse(res.data as unknown as string)
+          const base64Data = parsed.data?.data
+          if (base64Data) {
+            downloadPPTFile(base64Data)
+            // 更新最后一条消息为完成状态
+            const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+            if (lastRecord) {
+              lastRecord.aiReply = '小顾问帮你规划完毕，记得查收哦~（下载完成）'
+            }
+            // 保存技能学习结果到store
+            const jobName = knowledgeData.job_name
+            const skillName = knowledgeData.skill_name
+            const dimensions = knowledgeData.dimensions || []
+            const jobSkillData = skillsData.value.find((s) => s.job_name === jobName)
+            const score = jobSkillData?.score ?? 0
+            skillResultsStore.addSkillResult(jobName, skillName, score, dimensions)
+          } else {
+            const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+            if (lastRecord) {
+              lastRecord.aiReply = '生成失败，请稍后重试'
+            }
+          }
+        } else {
+          const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+          if (lastRecord) {
+            lastRecord.aiReply = '生成失败，请稍后重试'
+          }
+        }
+      } catch (error) {
+        console.error('[PPT] 请求异常:', error)
+        const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+        if (lastRecord) {
+          lastRecord.aiReply = '生成失败，请稍后重试'
+        }
+      }
+    } else {
+      chatRecords.value.push({
+        userMessage: '',
+        aiReply: '数据不完整，无法生成学习路线',
+      })
+      scrollToBottom()
+    }
   } finally {
     isConfirming.value = false
   }
@@ -516,6 +606,8 @@ const toggleSkill = (skillItem: string) => {
     isSkillConfirmed.value = false
     // 清空聊天记录
     chatRecords.value = []
+    // 清空 sessionStorage 存储的状态
+    clearSessionState()
   } else if (!isSkillConfirmed.value || selectedSkills.value.length === 0) {
     selectedSkills.value = [skillItem]
   } else {
@@ -543,6 +635,10 @@ const getJobSelectedCount = (job: { skillList: { name: string }[] }) => {
 }
 
 onMounted(async () => {
+  // 从 sessionStorage 恢复对话记录和技能状态
+  loadChatRecordsFromSession()
+  loadSkillStateFromSession()
+
   try {
     const jobNamesParam = route.query.jobNames as string
     const jobTokenParam = route.query.jobToken as string
@@ -598,6 +694,9 @@ onMounted(async () => {
             // 等待下一个 tick 再初始化折叠状态，确保 computed 已更新
             await nextTick()
             initCollapsedJobs()
+
+            // 如果有恢复的技能状态，自动调用接口获取知识点
+            await restoreSkillKnowledgePoints()
           }
         } catch (error) {
           console.error('获取用户数据失败:', error)
@@ -641,6 +740,9 @@ onMounted(async () => {
           // 等待下一个 tick 再初始化折叠状态
           await nextTick()
           initCollapsedJobs()
+
+          // 如果有恢复的技能状态，自动调用接口获取知识点
+          await restoreSkillKnowledgePoints()
         }
       } catch (error) {
         console.error('RAG 检索失败:', error)
@@ -695,6 +797,79 @@ interface ChatRecord {
 }
 const chatRecords = ref<ChatRecord[]>([])
 const isSendingMessage = ref(false)
+
+// 从 sessionStorage 读取对话记录
+const loadChatRecordsFromSession = () => {
+  try {
+    const saved = sessionStorage.getItem('skillPage_chatRecords')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        chatRecords.value = parsed
+      }
+    }
+  } catch (e) {
+    console.warn('从 sessionStorage 读取对话记录失败:', e)
+  }
+}
+
+// 保存对话记录到 sessionStorage
+const saveChatRecordsToSession = () => {
+  try {
+    sessionStorage.setItem('skillPage_chatRecords', JSON.stringify(chatRecords.value))
+  } catch (e) {
+    console.warn('保存对话记录到 sessionStorage 失败:', e)
+  }
+}
+
+// 监听对话记录变化，自动保存到 sessionStorage
+watch(chatRecords, saveChatRecordsToSession, { deep: true })
+
+// 从 sessionStorage 读取技能选择状态
+const loadSkillStateFromSession = () => {
+  try {
+    const savedSkills = sessionStorage.getItem('skillPage_selectedSkills')
+    const savedConfirmed = sessionStorage.getItem('skillPage_isSkillConfirmed')
+    if (savedSkills) {
+      const parsed = JSON.parse(savedSkills)
+      if (Array.isArray(parsed)) {
+        selectedSkills.value = parsed
+      }
+    }
+    if (savedConfirmed) {
+      isSkillConfirmed.value = savedConfirmed === 'true'
+      if (isSkillConfirmed.value) {
+        hasEverConfirmed.value = true
+      }
+    }
+  } catch (e) {
+    console.warn('从 sessionStorage 读取技能状态失败:', e)
+  }
+}
+
+// 保存技能选择状态到 sessionStorage
+const saveSkillStateToSession = () => {
+  try {
+    sessionStorage.setItem('skillPage_selectedSkills', JSON.stringify(selectedSkills.value))
+    sessionStorage.setItem('skillPage_isSkillConfirmed', String(isSkillConfirmed.value))
+  } catch (e) {
+    console.warn('保存技能状态到 sessionStorage 失败:', e)
+  }
+}
+
+// 清空所有 sessionStorage 存储的状态
+const clearSessionState = () => {
+  try {
+    sessionStorage.removeItem('skillPage_chatRecords')
+    sessionStorage.removeItem('skillPage_selectedSkills')
+    sessionStorage.removeItem('skillPage_isSkillConfirmed')
+  } catch (e) {
+    console.warn('清空 sessionStorage 失败:', e)
+  }
+}
+
+// 监听技能选择状态变化，自动保存
+watch([selectedSkills, isSkillConfirmed], saveSkillStateToSession, { deep: true })
 
 // 判断是否有未回答的题目（最后一条记录是题目且用户未回答）
 const hasUnansweredQuestion = computed(() => {

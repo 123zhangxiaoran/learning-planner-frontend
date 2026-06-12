@@ -291,6 +291,7 @@ export default <T>(config: {
   params?: unknown
   headers?: Record<string, string>
   signal?: AbortSignal
+  timeout?: number
 }): Promise<ApiResponse<T>> => {
   return request(config)
 }

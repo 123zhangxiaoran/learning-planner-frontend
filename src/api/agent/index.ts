@@ -20,6 +20,8 @@ import type {
   GenerateQuestionsResponse,
   GeneratedQuestion,
   GetUserKnowledgeDataResponse,
+  DeleteSkillRequest,
+  SubmitQuestionAnswerRequest,
 } from './types'
 
 export function sendChatMessage(
@@ -94,7 +96,7 @@ export function fetchSkillKnowledgePoints(
   })
 }
 
-// 生成学习路线
+// 生成学习路线（耗时操作，设置5分钟超时）
 export function generateLearningPath(
   data: GenerateLearningPathRequest,
 ): Promise<ApiResponse<GenerateLearningPathResponse>> {
@@ -102,6 +104,7 @@ export function generateLearningPath(
     url: '/agent/generateLearningPath',
     method: 'post',
     data,
+    timeout: 300000, // 5分钟超时
   })
 }
 
@@ -145,6 +148,14 @@ export function getUserKnowledgeData(userId: number): Promise<ApiResponse<GetUse
   })
 }
 
+// 根据用户ID获取题目数据（GET）
+export function getUserQuestions(userId: number): Promise<ApiResponse<unknown>> {
+  return request<unknown>({
+    url: `/user/userQuestions/${userId}`,
+    method: 'get',
+  })
+}
+
 // 页面数据汇总上报（5秒自动触发一次）
 export function reportPageData(
   data: ReportPageDataRequest,
@@ -173,4 +184,26 @@ export type {
   GenerateQuestionsRequest,
   GenerateQuestionsResponse,
   GeneratedQuestion,
+}
+
+// 删除用户技能
+export function deleteUserSkill(
+  data: DeleteSkillRequest,
+): Promise<ApiResponse<void>> {
+  return request<void>({
+    url: '/user/deleteSkill',
+    method: 'post',
+    data,
+  })
+}
+
+// 提交题目答案（更新知识点评分和答题状态）
+export function submitQuestionAnswer(
+  data: SubmitQuestionAnswerRequest,
+): Promise<ApiResponse<void>> {
+  return request<void>({
+    url: '/user/submitQuestionAnswer',
+    method: 'post',
+    data,
+  })
 }

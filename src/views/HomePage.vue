@@ -255,7 +255,13 @@ import NavBar from '@/components/layout/NavBar.vue'
 import { usePlayerStore } from '@/stores/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
-import { getUserJobData, getUserSelectedSkills, getUserKnowledgeData, type UserLearningProgress } from '@/api/agent'
+import { useUserQuestionsStore, type UserQuestion } from '@/stores/userQuestions'
+import {
+  getUserJobData,
+  getUserSelectedSkills,
+  getUserKnowledgeData,
+  getUserQuestions,
+} from '@/api/agent'
 import type { SkillResult } from '@/stores/skillResults'
 
 // ======================== 反AI彩蛋 ========================
@@ -328,6 +334,7 @@ function handleMouseMove(e: MouseEvent) {
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
+const userQuestionsStore = useUserQuestionsStore()
 
 async function restoreUserData() {
   if (careerStore.selectedJobNames.length > 0) return
@@ -371,7 +378,8 @@ async function restoreUserData() {
           skillResultsData[jobName] = skillList
           for (const [skillName, knowledgeList] of Object.entries(skills)) {
             const dimensions = knowledgeList.map((k) => [k.name])
-            const avgScore = knowledgeList.reduce((sum, k) => sum + k.score, 0) / knowledgeList.length
+            const avgScore =
+              knowledgeList.reduce((sum, k) => sum + k.score, 0) / knowledgeList.length
             skillList.push({ skill_name: skillName, score: avgScore, dimensions })
           }
         }
@@ -391,6 +399,18 @@ async function restoreUserData() {
     if (knowledgeRes.code === 200 && knowledgeRes.data) {
       // 知识点数据存入 Pinia 或本地处理
       console.log('获取到知识点数据:', knowledgeRes.data.knowledgePoints)
+    }
+
+    // 获取用户题目数据（优先从 Pinia 读取，过期后才调用 API）
+    if (!userQuestionsStore.hasData() || userQuestionsStore.isDataExpired()) {
+      const questionsRes = await getUserQuestions(userId)
+      if (questionsRes.code === 200 && questionsRes.data) {
+        const questionsData = questionsRes.data as UserQuestion[]
+        userQuestionsStore.setUserQuestions(questionsData)
+        console.log('从服务器获取到题目数据并存入Store:', questionsData.length, '条')
+      }
+    } else {
+      console.log('从 Pinia 缓存读取题目数据:', userQuestionsStore.userQuestions.length, '条')
     }
   } catch (e) {
     console.warn('恢复数据失败:', e)

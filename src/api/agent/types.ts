@@ -201,3 +201,29 @@ export interface GenerateQuestionsApiResponse {
   message: string
   data: string // JSON.stringify(GenerateQuestionsResponse)
 }
+
+// 生成专属题目请求
+export interface GenerateQuestionsRequest {
+  skill_name: string
+  job_name: string
+  dimensions: string[][]
+  user_id: number
+}
+
+// 删除技能请求
+export interface DeleteSkillRequest {
+  user_id: number
+  skill_name: string
+  job_name: string
+}
+
+// 提交题目答案请求
+export interface SubmitQuestionAnswerRequest {
+  user_id: number
+  question_id: string
+  is_correct: number
+  question_type: string
+  job_name: string
+  skill_name: string
+  knowledge_name: string
+}

@@ -135,6 +135,25 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
     localStorage.removeItem(EXPIRY_KEY)
   }
 
+  // 删除指定技能
+  const removeSkillResult = (skill: SkillResult, jobName: string) => {
+    if (!skillResults.value[jobName]) return
+    const index = skillResults.value[jobName].findIndex((s) => s.skill_name === skill.skill_name)
+    if (index !== -1) {
+      skillResults.value[jobName].splice(index, 1)
+      // 同时删除该技能下的所有知识点评分
+      if (skill.dimensions) {
+        for (const dim of skill.dimensions) {
+          if (dim.length > 0) {
+            const key = `${skill.skill_name}::${dim[0]}`
+            delete knowledgeScores.value[key]
+          }
+        }
+      }
+      saveToStorage()
+    }
+  }
+
   return {
     skillResults,
     knowledgeScores,
@@ -143,5 +162,6 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
     setSkillResults,
     setKnowledgeScores,
     clearAll,
+    removeSkillResult,
   }
 })
