@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { usePlayerStore } from './user'
 
-// 存储键名
-const STORAGE_KEY = 'skill-results-store'
-const SCORES_KEY = 'knowledge-scores-store'
-const EXPIRY_KEY = 'skill-results-store-expiry'
+// 存储键名（带用户ID隔离）
+const getStorageKey = (userId: number) => `skill-results-store-${userId}`
+const getScoresKey = (userId: number) => `knowledge-scores-store-${userId}`
+const getExpiryKey = (userId: number) => `skill-results-store-expiry-${userId}`
 
 // 7天的毫秒数（与 career store 一致）
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
@@ -17,10 +18,14 @@ export interface SkillResult {
 }
 
 export const useSkillResultsStore = defineStore('skillResults', () => {
+  // 获取当前用户ID
+  const playerStore = usePlayerStore()
+  const currentUserId = computed(() => playerStore.playerInfo?.id || 0)
+
   // 检查是否过期
-  const isExpired = (): boolean => {
+  const isExpired = (userId: number): boolean => {
     try {
-      const expiry = localStorage.getItem(EXPIRY_KEY)
+      const expiry = localStorage.getItem(getExpiryKey(userId))
       if (!expiry) return true
       const expiryTime = parseInt(expiry)
       if (isNaN(expiryTime)) return true
@@ -32,13 +37,15 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
 
   // 从 localStorage 初始化
   const initFromStorage = (): Record<string, SkillResult[]> => {
-    if (isExpired()) {
-      localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(SCORES_KEY)
-      localStorage.removeItem(EXPIRY_KEY)
+    const userId = currentUserId.value
+    if (!userId) return {}
+    if (isExpired(userId)) {
+      localStorage.removeItem(getStorageKey(userId))
+      localStorage.removeItem(getScoresKey(userId))
+      localStorage.removeItem(getExpiryKey(userId))
       return {}
     }
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(getStorageKey(userId))
     if (stored) {
       try {
         const data = JSON.parse(stored) as Record<string, SkillResult[]>
@@ -51,9 +58,9 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
         }
         return data
       } catch {
-        localStorage.removeItem(STORAGE_KEY)
-        localStorage.removeItem(SCORES_KEY)
-        localStorage.removeItem(EXPIRY_KEY)
+        localStorage.removeItem(getStorageKey(userId))
+        localStorage.removeItem(getScoresKey(userId))
+        localStorage.removeItem(getExpiryKey(userId))
       }
     }
     return {}
@@ -61,15 +68,17 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
 
   // 从 localStorage 初始化知识点评分
   const initScoresFromStorage = (): Record<string, number> => {
-    if (isExpired()) {
-      localStorage.removeItem(SCORES_KEY)
+    const userId = currentUserId.value
+    if (!userId) return {}
+    if (isExpired(userId)) {
+      localStorage.removeItem(getScoresKey(userId))
       return {}
     }
     try {
-      const stored = localStorage.getItem(SCORES_KEY)
+      const stored = localStorage.getItem(getScoresKey(userId))
       return stored ? JSON.parse(stored) : {}
     } catch {
-      localStorage.removeItem(SCORES_KEY)
+      localStorage.removeItem(getScoresKey(userId))
       return {}
     }
   }
@@ -83,9 +92,11 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
   // 保存到 localStorage
   const saveToStorage = () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(skillResults.value))
-      localStorage.setItem(SCORES_KEY, JSON.stringify(knowledgeScores.value))
-      localStorage.setItem(EXPIRY_KEY, String(Date.now() + SEVEN_DAYS))
+      const userId = currentUserId.value
+      if (!userId) return
+      localStorage.setItem(getStorageKey(userId), JSON.stringify(skillResults.value))
+      localStorage.setItem(getScoresKey(userId), JSON.stringify(knowledgeScores.value))
+      localStorage.setItem(getExpiryKey(userId), String(Date.now() + SEVEN_DAYS))
     } catch (error) {
       console.error('保存技能学习结果失败:', error)
     }
@@ -128,11 +139,14 @@ export const useSkillResultsStore = defineStore('skillResults', () => {
 
   // 清空所有技能学习结果
   const clearAll = () => {
+    const userId = currentUserId.value
     skillResults.value = {}
     knowledgeScores.value = {}
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.removeItem(SCORES_KEY)
-    localStorage.removeItem(EXPIRY_KEY)
+    if (userId) {
+      localStorage.removeItem(getStorageKey(userId))
+      localStorage.removeItem(getScoresKey(userId))
+      localStorage.removeItem(getExpiryKey(userId))
+    }
   }
 
   // 删除指定技能

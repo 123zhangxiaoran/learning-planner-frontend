@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { usePlayerStore } from './user'
 
-// 存储键名
-const STORAGE_KEY = 'skill-knowledge-store'
-const EXPIRY_KEY = 'skill-knowledge-expiry'
+// 存储键名（带用户ID隔离）
+const getStorageKey = (userId: number) => `skill-knowledge-store-${userId}`
+const getExpiryKey = (userId: number) => `skill-knowledge-expiry-${userId}`
 
 // 1天的毫秒数
 const ONE_DAY = 24 * 60 * 60 * 1000
@@ -17,10 +18,14 @@ export interface SkillKnowledgeStorage {
 }
 
 export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
+  // 获取当前用户ID
+  const playerStore = usePlayerStore()
+  const currentUserId = computed(() => playerStore.playerInfo?.id || 0)
+
   // 检查是否过期
-  const isExpired = (): boolean => {
+  const isExpired = (userId: number): boolean => {
     try {
-      const expiry = localStorage.getItem(EXPIRY_KEY)
+      const expiry = localStorage.getItem(getExpiryKey(userId))
       if (!expiry) return true
       const expiryTime = parseInt(expiry)
       if (isNaN(expiryTime)) return true
@@ -35,18 +40,20 @@ export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
 
   // 从 localStorage 初始化
   const initFromStorage = (): SkillKnowledgeStorage | null => {
-    if (isExpired()) {
-      localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(EXPIRY_KEY)
+    const userId = currentUserId.value
+    if (!userId) return null
+    if (isExpired(userId)) {
+      localStorage.removeItem(getStorageKey(userId))
+      localStorage.removeItem(getExpiryKey(userId))
       return null
     }
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(getStorageKey(userId))
     if (stored) {
       try {
         return JSON.parse(stored) as SkillKnowledgeStorage
       } catch {
-        localStorage.removeItem(STORAGE_KEY)
-        localStorage.removeItem(EXPIRY_KEY)
+        localStorage.removeItem(getStorageKey(userId))
+        localStorage.removeItem(getExpiryKey(userId))
         return null
       }
     }
@@ -59,12 +66,14 @@ export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
   // 保存技能知识点到 localStorage（1天过期）
   const setSkillKnowledge = (data: Omit<SkillKnowledgeStorage, 'timestamp'>) => {
     try {
+      const userId = currentUserId.value
+      if (!userId) return
       const storageData: SkillKnowledgeStorage = {
         ...data,
         timestamp: Date.now(),
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData))
-      localStorage.setItem(EXPIRY_KEY, String(Date.now() + ONE_DAY))
+      localStorage.setItem(getStorageKey(userId), JSON.stringify(storageData))
+      localStorage.setItem(getExpiryKey(userId), String(Date.now() + ONE_DAY))
       skillKnowledgeData.value = storageData
     } catch (error) {
       console.error('保存技能知识点失败:', error)
@@ -74,9 +83,12 @@ export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
   // 清除技能知识点
   const clearSkillKnowledge = () => {
     try {
+      const userId = currentUserId.value
       skillKnowledgeData.value = null
-      localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(EXPIRY_KEY)
+      if (userId) {
+        localStorage.removeItem(getStorageKey(userId))
+        localStorage.removeItem(getExpiryKey(userId))
+      }
     } catch (error) {
       console.error('清除技能知识点失败:', error)
     }

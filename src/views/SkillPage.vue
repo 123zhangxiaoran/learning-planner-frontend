@@ -361,7 +361,7 @@
             <button
               class="action-btn"
               :class="{ disabled: selectedSkills.length === 0 || isConfirming }"
-              @click="confirmSkill"
+              @click="handleConfirmSkill"
             >
               <template v-if="isConfirming">
                 <span
@@ -487,6 +487,14 @@ const skillOptions = computed(() => {
   }))
 })
 
+// 处理确认技能选择（点击时立即滚动）
+const handleConfirmSkill = () => {
+  // 移动端立即滚动到顶部
+  scrollToTop()
+  // 调用确认逻辑
+  confirmSkill()
+}
+
 // 确认技能选择
 const confirmSkill = async () => {
   if (selectedSkills.value.length === 0 || isConfirming.value) return
@@ -523,11 +531,15 @@ const confirmSkill = async () => {
     if (skillExists) {
       isSkillConfirmed.value = true
       hasEverConfirmed.value = true
+      // 移动端滚动到顶部
+      scrollToTop()
       return
     }
 
     isSkillConfirmed.value = true
     hasEverConfirmed.value = true
+    // 移动端滚动到顶部
+    scrollToTop()
 
     // 直接开始生成PPT，不再弹出选择按钮
     const knowledgeData = skillKnowledgeStore.skillKnowledgeData
@@ -890,6 +902,18 @@ const hasUnansweredQuestion = computed(() => {
 // AbortController 用于取消请求
 let abortController: AbortController | null = null
 
+// 滚动到聊天框顶部
+const scrollToTop = () => {
+  nextTick(() => {
+    const leftPanel = document.querySelector('.left-panel')
+    if (leftPanel) {
+      leftPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  })
+}
+
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
@@ -916,15 +940,17 @@ const handleSendMessage = async (message: string) => {
     await new Promise((resolve) => setTimeout(resolve, 3000))
     const knowledgeData = skillKnowledgeStore.skillKnowledgeData
     // 先从 skillKnowledgeStore 取 dimensions，如果没有再从 skillResultsStore 查找
-    const dimensions = knowledgeData?.dimensions || (() => {
-      const jobName = knowledgeData?.job_name
-      const skillName = knowledgeData?.skill_name
-      if (!jobName || !skillName) return undefined
-      const results = skillResultsStore.skillResults[jobName]
-      if (!results) return undefined
-      const found = results.find(s => s.skill_name === skillName)
-      return found?.dimensions
-    })()
+    const dimensions =
+      knowledgeData?.dimensions ||
+      (() => {
+        const jobName = knowledgeData?.job_name
+        const skillName = knowledgeData?.skill_name
+        if (!jobName || !skillName) return undefined
+        const results = skillResultsStore.skillResults[jobName]
+        if (!results) return undefined
+        const found = results.find((s) => s.skill_name === skillName)
+        return found?.dimensions
+      })()
     const res = await answerUserQuestion(
       {
         skill_name: knowledgeData?.skill_name || '',
@@ -940,9 +966,7 @@ const handleSendMessage = async (message: string) => {
       const responseData = JSON.parse(res.data as unknown as string)
       // 解析内层 data（可能是 JSON 字符串或已经是对象）
       const innerData =
-        typeof responseData.data === 'string'
-          ? JSON.parse(responseData.data)
-          : responseData.data
+        typeof responseData.data === 'string' ? JSON.parse(responseData.data) : responseData.data
       // 更新最后一条对话记录的 AI 回复
       const lastRecord = chatRecords.value[chatRecords.value.length - 1]
       if (lastRecord) {
@@ -985,6 +1009,10 @@ const handleSendMessage = async (message: string) => {
               skillResultsStore.addSkillResult(jobName, skillName, score, dimensions)
             }
           }
+        } else {
+          // 未知的 toolType 或 tool 字段缺失，使用通用处理
+          console.warn('未知的 toolType:', toolType, 'innerData:', innerData)
+          lastRecord.aiReply = innerData.answer || innerData.data || '小顾问处理完毕，但格式不太对，请重试~'
         }
         scrollToBottom()
       }
@@ -993,11 +1021,16 @@ const handleSendMessage = async (message: string) => {
     // 判断是否是用户主动取消
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('请求已取消')
+      // 移除最后一条对话记录（包括思考中占位）
+      chatRecords.value.pop()
     } else {
       console.error('消息提交失败:', error)
+      // 尝试更新最后一条记录，显示错误提示而不是"思考中"
+      const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+      if (lastRecord && lastRecord.aiReply === '小顾问思考中....') {
+        lastRecord.aiReply = '小顾问处理出错了，请稍后重试~'
+      }
     }
-    // 移除最后一条对话记录（包括思考中占位）
-    chatRecords.value.pop()
   } finally {
     isSendingMessage.value = false
     abortController = null
@@ -1274,6 +1307,39 @@ const splitWaveText = (text: string) => {
   display: flex;
   gap: 2rem;
   height: 100%;
+}
+
+/* 移动端/平板：上下布局，聊天框在上 */
+@media (max-width: 900px) {
+  .split-layout {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .left-panel {
+    order: 1;
+    flex: none;
+    height: 60vh;
+  }
+
+  .right-panel {
+    order: 2;
+    width: 100%;
+    max-height: none;
+    height: auto;
+    max-height: 40vh;
+  }
+}
+
+/* 手机小屏：进一步调整 */
+@media (max-width: 600px) {
+  .left-panel {
+    height: 55vh;
+  }
+
+  .right-panel {
+    max-height: 45vh;
+  }
 }
 
 /* 左侧对话面板 */

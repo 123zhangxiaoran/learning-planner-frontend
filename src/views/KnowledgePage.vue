@@ -153,31 +153,38 @@
         </div>
         <div class="ai-dialog-content">
           <div class="knowledge-dimensions-list">
-            <button
+            <!-- 骨架屏占位符 -->
+            <template v-if="currentSkillDimensions.length === 0">
+              <div v-for="n in 6" :key="`skeleton-${n}`" class="knowledge-dimension-skeleton"></div>
+            </template>
+            <!-- 实际知识点div -->
+            <div
               v-for="(dim, index) in currentSkillDimensions"
               :key="index"
-              class="knowledge-dimension-btn"
+              class="knowledge-dimension-item"
               :class="{ selected: isDimensionSelected(index) }"
               @click="toggleDimension(index)"
             >
               {{ dim[0] }}
-            </button>
+            </div>
           </div>
-          <div class="dialog-buttons">
-            <button
-              class="btn-generate-questions"
-              @click="handleGenerateQuestions"
-              :disabled="isGenerating || selectedDimensionIndices.size === 0"
-            >
-              <span v-if="isGenerating" class="loading-text">
-                生成中
-                <WaveLoading />
-              </span>
-              <span v-else>生成专属题目</span>
-            </button>
-            <button class="btn-cancel" @click="closeDialog" :disabled="isGenerating">
-              取消生成
-            </button>
+          <div class="dialog-buttons-wrapper">
+            <div class="dialog-buttons">
+              <button
+                class="btn-generate-questions"
+                @click="handleGenerateQuestions"
+                :disabled="isGenerating || selectedDimensionIndices.size === 0"
+              >
+                <span v-if="isGenerating" class="loading-text">
+                  生成中
+                  <WaveLoading />
+                </span>
+                <span v-else>生成专属题目</span>
+              </button>
+              <button class="btn-cancel" @click="closeDialog" :disabled="isGenerating">
+                取消生成
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1454,6 +1461,18 @@ async function handleGenerateQuestions() {
   }
 }
 
+/* 移动端从底部弹入动画 */
+@keyframes slideInBottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .ai-dialog-header {
   display: flex;
   justify-content: space-between;
@@ -1499,14 +1518,15 @@ async function handleGenerateQuestions() {
 .knowledge-dimensions-list {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
+  gap: 0.5rem 1rem;
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
+  align-content: start;
 }
 
 .knowledge-dimension-btn {
-  padding: 1rem 1.25rem;
+  padding: 0.3rem 0.8rem;
   background: #f9fafb;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
@@ -1515,7 +1535,7 @@ async function handleGenerateQuestions() {
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
-  height: 70px;
+  min-height: 10px;
   display: flex;
   align-items: center;
 }
@@ -1532,6 +1552,57 @@ async function handleGenerateQuestions() {
   font-weight: 600;
 }
 
+/* 知识点div样式 */
+.knowledge-dimension-item {
+  width: 100%;
+  height: 68px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.knowledge-dimension-item:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.knowledge-dimension-item.selected {
+  border-color: #3b82f6;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+/* 知识点按钮骨架屏 */
+.knowledge-dimension-skeleton {
+  width: 100%;
+  height: 60px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .dialog-buttons {
   display: flex;
   gap: 0.8rem;
@@ -1539,6 +1610,7 @@ async function handleGenerateQuestions() {
   padding: 1.5rem;
   border-top: 1px solid #e5e7eb;
   background: #f9fafb;
+  flex-shrink: 0;
 }
 
 .btn-generate-questions {
@@ -1601,6 +1673,84 @@ async function handleGenerateQuestions() {
 .btn-cancel:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ========= AI出题弹窗移动端适配 ========= */
+@media (max-width: 1024px) {
+  .ai-dialog-overlay {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .ai-dialog-panel {
+    width: 100%;
+    height: 85vh;
+    border-radius: 20px 20px 0 0;
+    animation: slideInBottom 0.3s ease-out;
+  }
+
+  .knowledge-dimensions-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.75rem;
+  }
+
+  .knowledge-dimension-item {
+    width: 96%;
+    height: 70px;
+    font-size: 0.9rem;
+    padding: 0 0.75rem;
+  }
+
+  .knowledge-dimension-skeleton {
+    width: 96%;
+    height: 70px;
+  }
+
+  .ai-dialog-header {
+    padding: 1.2rem 1rem;
+  }
+
+  .ai-dialog-title {
+    font-size: 1.1rem;
+  }
+
+  .dialog-buttons-wrapper {
+    margin-top: auto;
+  }
+
+  .dialog-buttons {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .ai-dialog-panel {
+    height: 90vh;
+  }
+
+  .knowledge-dimensions-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.75rem;
+  }
+
+  .knowledge-dimension-item {
+    width: 96%;
+    height: 70px;
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+  }
+
+  .knowledge-dimension-skeleton {
+    width: 96%;
+    height: 70px;
+  }
 }
 
 /* ========= 错题本面板 ========= */
@@ -2280,6 +2430,200 @@ async function handleGenerateQuestions() {
   background: #ef4444;
   color: var(--bg-dark);
   transform: scale(1.02);
+}
+
+/* ========= 题库面板响应式适配 ========= */
+@media (max-width: 1024px) {
+  .question-bank-panel {
+    width: 80vw;
+    max-width: 700px;
+    height: 75vh;
+  }
+
+  .question-bank-content {
+    padding: 1.2rem;
+  }
+
+  .question-item {
+    padding: 1.2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .question-bank-overlay {
+    padding: 1rem;
+  }
+
+  .question-bank-panel {
+    width: 95vw;
+    max-width: none;
+    height: 85vh;
+    border-radius: 12px;
+  }
+
+  .question-bank-header {
+    padding: 1rem 1.2rem;
+  }
+
+  .question-bank-title {
+    font-size: 1rem;
+  }
+
+  .question-bank-content {
+    padding: 1rem;
+  }
+
+  .knowledge-group-item {
+    padding: 0.8rem 1rem;
+  }
+
+  .knowledge-group-item .knowledge-name {
+    font-size: 0.9rem;
+  }
+
+  .question-item {
+    padding: 1rem;
+  }
+
+  .question-text {
+    font-size: 0.95rem;
+  }
+
+  .option-item {
+    padding: 0.75rem 0.9rem;
+  }
+
+  .option-text {
+    font-size: 0.9rem;
+  }
+
+  .section-divider {
+    font-size: 0.9rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .group-title {
+    padding: 0.6rem 0.8rem;
+  }
+
+  .group-title span {
+    font-size: 0.95rem;
+  }
+
+  .back-header {
+    padding: 0.5rem 1rem;
+  }
+
+  .submitting-hint,
+  .btn-submit-set,
+  .btn-add-wrong-book {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .question-bank-overlay {
+    padding: 0.5rem;
+  }
+
+  .question-bank-panel {
+    width: 100vw;
+    height: 90vh;
+    border-radius: 0;
+    animation: slideInBottom 0.3s ease-out;
+  }
+
+  .question-bank-header {
+    padding: 0.8rem 1rem;
+  }
+
+  .question-bank-title {
+    font-size: 0.95rem;
+  }
+
+  .question-bank-content {
+    padding: 0.8rem;
+  }
+
+  .knowledge-group-item {
+    padding: 0.7rem 0.8rem;
+    border-radius: 8px;
+  }
+
+  .knowledge-group-item .knowledge-name {
+    font-size: 0.85rem;
+  }
+
+  .knowledge-group-item .question-count {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .question-item {
+    padding: 0.8rem;
+    border-radius: 8px;
+  }
+
+  .question-text {
+    font-size: 0.9rem;
+  }
+
+  .question-options {
+    gap: 0.4rem;
+  }
+
+  .option-item {
+    padding: 0.6rem 0.8rem;
+    gap: 0.5rem;
+    border-radius: 8px;
+  }
+
+  .option-label {
+    width: 22px;
+    height: 22px;
+    font-size: 0.8rem;
+  }
+
+  .option-text {
+    font-size: 0.85rem;
+  }
+
+  .section-divider {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.7rem;
+  }
+
+  .group-title {
+    padding: 0.5rem 0.7rem;
+  }
+
+  .group-title span {
+    font-size: 0.9rem;
+  }
+
+  .back-header {
+    padding: 0.4rem 0.8rem;
+  }
+
+  .back-text {
+    font-size: 0.85rem;
+  }
+
+  .submitting-hint,
+  .btn-submit-set,
+  .btn-add-wrong-book {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .question-explanation {
+    padding: 0.8rem;
+  }
+
+  .explanation-content {
+    font-size: 0.85rem;
+  }
 }
 
 /* ========= 响应式适配 ========= */

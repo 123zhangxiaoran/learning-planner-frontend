@@ -25,7 +25,7 @@ const baseURL = isLocal ? '/api' : `${apiBaseUrl}/api`
 
 const request = axios.create({
   baseURL,
-  timeout: 60000,
+  timeout: 300000,
   withCredentials: true,
 })
 
@@ -145,28 +145,18 @@ async function refreshAccessToken(isLogout: boolean = false): Promise<boolean> {
       // 刷新失败：业务逻辑错误
       if (res.code === 400) {
         // code === 400（参数错误），说明 token 无效或参数异常，清除数据并跳转登录页
-        playerStore.setAccessToken('')
-        playerStore.setPlayerInfo(null)
-        const { useCareerStore } = await import('@/stores/career')
-        useCareerStore().clearJobNames()
+        await clearAllUserData()
         router.replace({ name: 'user-login' })
       } else if (res.code === 404) {
         // code === 404（UNAUTHORIZED），未登录或token已过期，清除数据并跳转登录页
-        playerStore.setAccessToken('')
-        playerStore.setPlayerInfo(null)
-        const { useCareerStore } = await import('@/stores/career')
-        useCareerStore().clearJobNames()
+        await clearAllUserData()
         router.replace({ name: 'user-login' })
       }
       return false
     } catch (error) {
       // 如果是401，说明长token也过期了，需要重新登录
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        playerStore.setAccessToken('')
-        playerStore.setPlayerInfo(null)
-        // 清除职业存储
-        const { useCareerStore } = await import('@/stores/career')
-        useCareerStore().clearJobNames()
+        await clearAllUserData()
         router.replace({ name: 'user-login' })
       }
       return false
@@ -203,10 +193,7 @@ request.interceptors.request.use(
       if (!success) {
         // 如果是退出操作，刷新失败时直接清除token并跳转
         if (isLogout) {
-          playerStore.setAccessToken('')
-          playerStore.setPlayerInfo(null)
-          const { useCareerStore } = await import('@/stores/career')
-          useCareerStore().clearJobNames()
+          await clearAllUserData()
           router.replace({ name: 'user-login' })
           return config
         }
@@ -214,10 +201,7 @@ request.interceptors.request.use(
       }
       // 刷新成功，如果是退出操作，直接清除数据跳转（后端退出接口不返回新token）
       if (isLogout) {
-        playerStore.setAccessToken('')
-        playerStore.setPlayerInfo(null)
-        const { useCareerStore } = await import('@/stores/career')
-        useCareerStore().clearJobNames()
+        await clearAllUserData()
         router.replace({ name: 'user-login' })
         return config
       }
@@ -268,16 +252,58 @@ request.interceptors.response.use(
 
     return response.data
   },
-  (error) => {
+  async (error) => {
     // 处理401未授权错误
     if (error.response?.status === 404) {
       // 清除token并跳转登录页
-      usePlayerStore().setAccessToken('')
+      await clearAllUserData()
       router.replace({ name: 'user-login' })
     }
     return Promise.reject(error)
   },
 )
+
+/**
+ * 清除所有用户相关数据（退出登录或token过期时调用）
+ * 与 MePage.vue 中的 handleLogout 保持一致
+ */
+async function clearAllUserData(): Promise<void> {
+  const { usePlayerStore } = await import('@/stores/user')
+  const { useCareerStore } = await import('@/stores/career')
+  const { useSkillKnowledgeStore } = await import('@/stores/skillKnowledge')
+  const { useSkillResultsStore } = await import('@/stores/skillResults')
+  const { useUserQuestionsStore } = await import('@/stores/userQuestions')
+  const { useReportPageStore } = await import('@/stores/reportPage')
+
+  const playerStore = usePlayerStore()
+
+  // 清除 pinia 中的用户信息和token
+  playerStore.setPlayerInfo(null)
+  playerStore.setAccessToken('')
+
+  // 清除 cookie 中的 refreshToken
+  document.cookie = 'refreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+
+  // 清除职业存储
+  useCareerStore().clearJobNames()
+
+  // 清除技能知识点数据
+  useSkillKnowledgeStore().clearSkillKnowledge()
+
+  // 清除技能学习结果
+  useSkillResultsStore().clearAll()
+
+  // 清除用户题目数据
+  useUserQuestionsStore().clearUserQuestions()
+
+  // 清除报告页面数据
+  useReportPageStore().clearReportData()
+
+  // 清除技能页面的 sessionStorage 缓存
+  sessionStorage.removeItem('skillPage_chatRecords')
+  sessionStorage.removeItem('skillPage_selectedSkills')
+  sessionStorage.removeItem('skillPage_isSkillConfirmed')
+}
 
 /**
  * 封装请求方法

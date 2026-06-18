@@ -157,6 +157,7 @@ import { onMounted, ref } from 'vue'
 import { usePlayerStore } from '@/stores/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
+import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
 import { useUserQuestionsStore } from '@/stores/userQuestions'
 import { useReportPageStore } from '@/stores/reportPage'
 import type { SkillResult } from '@/stores/skillResults'
@@ -168,6 +169,7 @@ import { logout } from '@/api/user'
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
+const skillKnowledgeStore = useSkillKnowledgeStore()
 const userQuestionsStore = useUserQuestionsStore()
 const reportPageStore = useReportPageStore()
 const router = useRouter()
@@ -200,10 +202,16 @@ function handleLogout() {
       careerStore.clearJobNames()
       // 清除技能学习结果
       skillResultsStore.clearAll()
+      // 清除技能知识点数据
+      skillKnowledgeStore.clearSkillKnowledge()
       // 清除用户题目数据
       userQuestionsStore.clearUserQuestions()
       // 清除报告页面数据
       reportPageStore.clearReportData()
+      // 清除技能页面的 sessionStorage 缓存（选中状态和对话记录）
+      sessionStorage.removeItem('skillPage_chatRecords')
+      sessionStorage.removeItem('skillPage_selectedSkills')
+      sessionStorage.removeItem('skillPage_isSkillConfirmed')
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })
@@ -448,10 +456,10 @@ async function handleDeleteSkill(skill: SkillResult, jobName: string) {
     })
 }
 
-// 页面加载先请求数据，之后每60秒刷新
+// 页面加载时请求数据并立即上报一次
 onMounted(async () => {
   await fetchUserSelectedSkills()
-  setInterval(sendReport, 60000)
+  await sendReport()
 })
 </script>
 
