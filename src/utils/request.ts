@@ -25,7 +25,7 @@ const baseURL = isLocal ? '/api' : `${apiBaseUrl}/api`
 
 const request = axios.create({
   baseURL,
-  timeout: 300000,
+  timeout: 600000,
   withCredentials: true,
 })
 
@@ -303,6 +303,8 @@ async function clearAllUserData(): Promise<void> {
   sessionStorage.removeItem('skillPage_chatRecords')
   sessionStorage.removeItem('skillPage_selectedSkills')
   sessionStorage.removeItem('skillPage_isSkillConfirmed')
+  // 清除职业页面的会话缓存
+  sessionStorage.removeItem('career_session')
 }
 
 /**

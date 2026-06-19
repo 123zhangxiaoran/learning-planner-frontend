@@ -255,6 +255,7 @@ import NavBar from '@/components/layout/NavBar.vue'
 import { usePlayerStore } from '@/stores/user'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
+import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
 import { useUserQuestionsStore, type UserQuestion } from '@/stores/userQuestions'
 import {
   getUserJobData,
@@ -334,6 +335,7 @@ function handleMouseMove(e: MouseEvent) {
 const playerStore = usePlayerStore()
 const careerStore = useCareerStore()
 const skillResultsStore = useSkillResultsStore()
+const skillKnowledgeStore = useSkillKnowledgeStore()
 const userQuestionsStore = useUserQuestionsStore()
 
 async function restoreUserData() {
@@ -397,8 +399,22 @@ async function restoreUserData() {
     // 获取用户知识点数据（缓存优先）
     const knowledgeRes = await getUserKnowledgeData(userId)
     if (knowledgeRes.code === 200 && knowledgeRes.data) {
-      // 知识点数据存入 Pinia 或本地处理
-      console.log('获取到知识点数据:', knowledgeRes.data.knowledgePoints)
+      try {
+        // response.data 是 JSON 字符串，需先解析
+        const parsed = JSON.parse(knowledgeRes.data as string)
+        if (parsed.success && Array.isArray(parsed.data)) {
+          // 存入 skillKnowledgeStore（不覆盖已有数据）
+          skillKnowledgeStore.setSkillKnowledgeList(
+            parsed.data.map((item: { skill_name: string; job_name: string; dimensions: string[][] }) => ({
+              skill_name: item.skill_name,
+              job_name: item.job_name,
+              dimensions: item.dimensions,
+            })),
+          )
+        }
+      } catch (e) {
+        console.warn('解析知识点数据失败:', e)
+      }
     }
 
     // 获取用户题目数据（优先从 Pinia 读取，过期后才调用 API）

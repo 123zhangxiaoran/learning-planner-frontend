@@ -226,4 +226,18 @@ export interface SubmitQuestionAnswerRequest {
   job_name: string
   skill_name: string
   knowledge_name: string
+  userInput?: string // 分析题时传入用户输入文本，由后端判断正确性
+  questionText?: string // 分析题时传入题目内容，供后端参考
+  correctAnswer?: string // 分析题时传入参考答案，供后端判断
+}
+
+// 收藏题目请求
+export interface CollectQuestionRequest {
+  user_id: number
+  question_id: string
+  is_collect: number
+  question_type: string
+  job_name: string
+  skill_name: string
+  knowledge_name: string
 }

@@ -212,6 +212,8 @@ function handleLogout() {
       sessionStorage.removeItem('skillPage_chatRecords')
       sessionStorage.removeItem('skillPage_selectedSkills')
       sessionStorage.removeItem('skillPage_isSkillConfirmed')
+      // 清除职业页面的会话缓存
+      sessionStorage.removeItem('career_session')
       // 使用 replace 跳转到登录页，防止回退到已登录页面
       router.replace({ name: 'user-login' })
     })
@@ -295,8 +297,20 @@ async function sendReport() {
     const res = await reportPageData({ userid: userId, skills })
     // 按 order 映射回 skill_name::knowledge_name
     if (res.data?.scores) {
+      // 构建 order → knowledge_name 索引
+      const orderIndex: Record<number, string> = {}
+      for (const skill of skills) {
+        for (const item of skill.items) {
+          orderIndex[item.order] = item.knowledge_name
+        }
+      }
+      // 将 API 返回的 scores 补上 knowledge_name
+      const enrichedScores = res.data.scores.map((s) => ({
+        ...s,
+        knowledge_name: orderIndex[s.order] ?? '',
+      }))
       // 直接将数据存储到 Pinia store
-      reportPageStore.setReportData({ userid: userId, scores: res.data.scores })
+      reportPageStore.setReportData({ userid: userId, scores: enrichedScores })
       // 重新计算每个技能的平均分写入 Pinia
       recalcSkillAverages()
     }
@@ -427,6 +441,8 @@ async function handleDeleteSkill(skill: SkillResult, jobName: string) {
         if (res.code === 200) {
           // 接口成功，删除本地数据
           skillResultsStore.removeSkillResult(skill, jobName)
+          // 删除后立即重新获取分数
+          await sendReport()
           // 显示删除成功弹窗
           deletedSkillName.value = skill.skill_name
           showDeleteToast.value = true

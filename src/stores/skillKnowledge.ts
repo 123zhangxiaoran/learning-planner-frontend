@@ -9,7 +9,7 @@ const getExpiryKey = (userId: number) => `skill-knowledge-expiry-${userId}`
 // 1天的毫秒数
 const ONE_DAY = 24 * 60 * 60 * 1000
 
-// 技能知识点存储
+// 技能知识点存储（单个）
 export interface SkillKnowledgeStorage {
   skill_name: string
   job_name: string // 技能所属的岗位名称
@@ -35,55 +35,109 @@ export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
     }
   }
 
-  // 技能知识点数据
-  const skillKnowledgeData = ref<SkillKnowledgeStorage | null>(null)
-
-  // 从 localStorage 初始化
-  const initFromStorage = (): SkillKnowledgeStorage | null => {
+  // 从 localStorage 初始化整个记录
+  const initFromStorage = (): Record<string, SkillKnowledgeStorage> => {
     const userId = currentUserId.value
-    if (!userId) return null
+    if (!userId) return {}
     if (isExpired(userId)) {
       localStorage.removeItem(getStorageKey(userId))
       localStorage.removeItem(getExpiryKey(userId))
-      return null
+      return {}
     }
     const stored = localStorage.getItem(getStorageKey(userId))
     if (stored) {
       try {
-        return JSON.parse(stored) as SkillKnowledgeStorage
+        const parsed = JSON.parse(stored)
+        // 兼容旧数据：如果是单个对象（有 skill_name 字段），转为 record
+        if (parsed.skill_name) {
+          const key = `${parsed.job_name}::${parsed.skill_name}`
+          return { [key]: parsed as SkillKnowledgeStorage }
+        }
+        // 新格式：已经是 record
+        return parsed as Record<string, SkillKnowledgeStorage>
       } catch {
         localStorage.removeItem(getStorageKey(userId))
         localStorage.removeItem(getExpiryKey(userId))
-        return null
       }
     }
-    return null
+    return {}
   }
 
-  // 初始化
-  skillKnowledgeData.value = initFromStorage()
+  // 从 record 中获取第一个技能作为当前选中（向后兼容）
+  const getFirstSkillFromRecord = (record: Record<string, SkillKnowledgeStorage>): SkillKnowledgeStorage | null => {
+    const keys = Object.keys(record)
+    return keys.length > 0 ? record[keys[0]]! : null
+  }
 
-  // 保存技能知识点到 localStorage（1天过期）
-  const setSkillKnowledge = (data: Omit<SkillKnowledgeStorage, 'timestamp'>) => {
+  // 技能知识点记录，key 为 "job_name::skill_name"
+  const skillKnowledgeRecord = ref<Record<string, SkillKnowledgeStorage>>(initFromStorage())
+
+  // 当前选中的技能知识点（向后兼容 SkillPage 等旧代码）
+  const skillKnowledgeData = ref<SkillKnowledgeStorage | null>(
+    getFirstSkillFromRecord(skillKnowledgeRecord.value),
+  )
+
+  // 保存到 localStorage
+  const saveToStorage = () => {
     try {
       const userId = currentUserId.value
       if (!userId) return
-      const storageData: SkillKnowledgeStorage = {
-        ...data,
-        timestamp: Date.now(),
-      }
-      localStorage.setItem(getStorageKey(userId), JSON.stringify(storageData))
+      localStorage.setItem(getStorageKey(userId), JSON.stringify(skillKnowledgeRecord.value))
       localStorage.setItem(getExpiryKey(userId), String(Date.now() + ONE_DAY))
-      skillKnowledgeData.value = storageData
     } catch (error) {
       console.error('保存技能知识点失败:', error)
     }
   }
 
-  // 清除技能知识点
+  // 设置单个技能知识点（如果已存在则更新，同时设为当前选中）
+  const setSkillKnowledge = (data: Omit<SkillKnowledgeStorage, 'timestamp'>) => {
+    const key = `${data.job_name}::${data.skill_name}`
+    const storageData: SkillKnowledgeStorage = {
+      ...data,
+      timestamp: Date.now(),
+    }
+    skillKnowledgeRecord.value = {
+      ...skillKnowledgeRecord.value,
+      [key]: storageData,
+    }
+    // 更新当前选中指针
+    skillKnowledgeData.value = storageData
+    saveToStorage()
+  }
+
+  // 批量添加技能知识点，不覆盖已有的（用于 getUserKnowledgeData 初始化）
+  const setSkillKnowledgeList = (
+    list: Array<{ job_name: string; skill_name: string; dimensions: string[][] }>,
+  ) => {
+    const newRecord = { ...skillKnowledgeRecord.value }
+    for (const item of list) {
+      const key = `${item.job_name}::${item.skill_name}`
+      if (!newRecord[key]) {
+        newRecord[key] = {
+          ...item,
+          timestamp: Date.now(),
+        }
+      }
+    }
+    skillKnowledgeRecord.value = newRecord
+    // 如果当前没有选中，设为第一个
+    if (!skillKnowledgeData.value) {
+      skillKnowledgeData.value = getFirstSkillFromRecord(newRecord)
+    }
+    saveToStorage()
+  }
+
+  // 通过 job_name 和 skill_name 查找技能知识点
+  const getSkillKnowledge = (jobName: string, skillName: string): SkillKnowledgeStorage | null => {
+    const key = `${jobName}::${skillName}`
+    return skillKnowledgeRecord.value[key] || null
+  }
+
+  // 清除所有技能知识点
   const clearSkillKnowledge = () => {
     try {
       const userId = currentUserId.value
+      skillKnowledgeRecord.value = {}
       skillKnowledgeData.value = null
       if (userId) {
         localStorage.removeItem(getStorageKey(userId))
@@ -97,6 +151,8 @@ export const useSkillKnowledgeStore = defineStore('skillKnowledge', () => {
   return {
     skillKnowledgeData,
     setSkillKnowledge,
+    setSkillKnowledgeList,
+    getSkillKnowledge,
     clearSkillKnowledge,
   }
 })

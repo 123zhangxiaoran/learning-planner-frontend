@@ -22,6 +22,7 @@ import type {
   GetUserKnowledgeDataResponse,
   DeleteSkillRequest,
   SubmitQuestionAnswerRequest,
+  CollectQuestionRequest,
 } from './types'
 
 export function sendChatMessage(
@@ -200,9 +201,20 @@ export function deleteUserSkill(
 // 提交题目答案（更新知识点评分和答题状态）
 export function submitQuestionAnswer(
   data: SubmitQuestionAnswerRequest,
+): Promise<ApiResponse<string[]>> {
+  return request<string[]>({
+    url: '/user/submitQuestionAnswer',
+    method: 'post',
+    data,
+  })
+}
+
+// 收藏/取消收藏题目
+export function collectQuestion(
+  data: CollectQuestionRequest,
 ): Promise<ApiResponse<void>> {
   return request<void>({
-    url: '/user/submitQuestionAnswer',
+    url: '/user/collectQuestion',
     method: 'post',
     data,
   })

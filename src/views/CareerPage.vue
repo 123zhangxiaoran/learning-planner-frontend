@@ -58,10 +58,10 @@
         <div v-if="isSearching" class="message ai-message">
           <div class="message-bubble">
             <p class="wave-animation">
-              <span :key="waveKey" @animationend="onDotAnimationEnd($event)"
-                >{{ splitWaveText('职业小顾问在努力搜索中....').prefix
+              <span :key="waveKey" @animationend="onDotAnimationEnd"
+                >{{ waveText.prefix
                 }}<span
-                  v-for="d in splitWaveText('职业小顾问在努力搜索中....').dots"
+                  v-for="d in waveText.dots"
                   :key="d.index"
                   class="wave-char"
                   :style="{ animationDelay: d.delay }"
@@ -102,7 +102,7 @@
               </div>
             </div>
             <!-- 下一步按钮 -->
-            <div class="next-step-container" v-if="showCareerOptions">
+            <div class="next-step-container">
               <div class="selection-info">
                 <span class="selection-hint" v-if="selectedCareers.length === 0"
                   >请至少选择1个职业</span
@@ -124,8 +124,10 @@
           </div>
         </div>
       </div>
+    </main>
 
-      <!-- 输入区域 -->
+    <!-- 输入区域 -->
+    <div class="chat-input-wrapper">
       <ChatInput
         v-model="userInput"
         placeholder="你现在的专业是什么？或者对哪些方向感兴趣..."
@@ -133,12 +135,12 @@
         @send="sendMessage"
         @cancel="cancelRequest"
       />
-    </main>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/layout/NavBar.vue'
 import ChatInput from '@/components/layout/ChatInput.vue'
@@ -150,6 +152,8 @@ import { useCareerStore } from '@/stores/career'
 const router = useRouter()
 const careerStore = useCareerStore()
 
+const SESSION_KEY = 'career_session'
+
 // 静态数据
 const userInput = ref('')
 const showCareerOptions = ref(false)
@@ -157,71 +161,120 @@ const userMessage = ref('')
 const aiMessage = ref('')
 const isSearching = ref(false)
 
+// 从 sessionStorage 恢复会话
+onMounted(() => {
+  try {
+    const saved = sessionStorage.getItem(SESSION_KEY)
+    if (saved) {
+      const data = JSON.parse(saved)
+      userMessage.value = data.userMessage || ''
+      aiMessage.value = data.aiMessage || ''
+      showCareerOptions.value = data.showCareerOptions || false
+      isSearching.value = data.isSearching || false
+      if (data.careerOptions?.length) {
+        careerOptions.value = data.careerOptions
+      }
+      if (data.selectedCareers?.length) {
+        selectedCareers.value = data.selectedCareers
+      }
+    }
+  } catch {
+    sessionStorage.removeItem(SESSION_KEY)
+  }
+})
+
+// 保存会话到 sessionStorage
+const saveSession = () => {
+  sessionStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      userMessage: userMessage.value,
+      aiMessage: aiMessage.value,
+      showCareerOptions: showCareerOptions.value,
+      careerOptions: careerOptions.value,
+      selectedCareers: selectedCareers.value,
+      isSearching: isSearching.value,
+    }),
+  )
+}
+
 // AbortController 用于取消请求
 let abortController: AbortController | null = null
 
 // 职业选项数据
 const careerOptions = ref<CareerOption[]>([])
 
+// 波浪文本（计算属性）
+const WAVE_TEXT = '职业小顾问在努力搜索中....'
+const waveText = computed(() => {
+  if (WAVE_TEXT.endsWith('....')) {
+    const prefix = WAVE_TEXT.slice(0, -4)
+    const dots = ['.', '.', '.', '.'].map((char, index) => ({
+      char,
+      index,
+      delay: `${index * 0.6}s`,
+    }))
+    return { prefix, dots }
+  }
+  return { prefix: WAVE_TEXT, dots: [] }
+})
+
 // 发送消息
 const sendMessage = async () => {
-  if (userInput.value.trim()) {
-    // 清空之前的数据
-    userMessage.value = userInput.value
-    careerOptions.value = []
-    selectedCareers.value = []
-    showCareerOptions.value = false
-    aiMessage.value = ''
-    isSearching.value = true
+  if (!userInput.value.trim()) return
+  // 清空之前的数据
+  userMessage.value = userInput.value
+  ;[careerOptions.value, selectedCareers.value, aiMessage.value] = [[], [], '']
+  showCareerOptions.value = false
+  isSearching.value = true
+  saveSession() // 立即保存清空后的状态，防止刷新读到旧数据
+  const major = userInput.value
+  userInput.value = ''
 
-    const major = userInput.value
-    userInput.value = ''
+  // 创建新的 AbortController
+  abortController = new AbortController()
 
-    // 创建新的 AbortController
-    abortController = new AbortController()
+  try {
+    // 延迟 3 秒后再发送请求，确保后端有足够时间处理
+    await new Promise((resolve) => setTimeout(resolve, 3000))
 
-    try {
-      // 延迟 3 秒后再发送请求，确保后端有足够时间处理
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+    const res = await sendChatMessage({ major }, abortController.signal)
+    if (res.code === 200) {
+      // res.data 是 JSON 字符串，需要先解析
+      const responseData = JSON.parse(res.data as unknown as string)
+      const jobs: JobInfo[] = responseData.jobs
 
-      const res = await sendChatMessage({ major: major }, abortController.signal)
-      if (res.code === 200) {
-        // res.data 是 JSON 字符串，需要先解析
-        const responseData = JSON.parse(res.data as unknown as string)
-        const jobs: JobInfo[] = responseData.jobs
-
-        // 检查是否找到合适的岗位
-        if (!jobs || jobs.length === 0) {
-          aiMessage.value = '职业小顾问没有找到合适的岗位，抱歉~'
-          careerOptions.value = []
-          showCareerOptions.value = false
-          return
-        }
-
-        // 转换为前端展示用的careerOptions
-        careerOptions.value = jobs.map((job, index) => ({
-          id: index + 1,
-          title: job.job_name,
-          description: job.job_description,
-          major: job.major,
-          similarity: job.similarity / 100, // 后端返回的是百分比，转为0-1
-        }))
-        showCareerOptions.value = true
-        // 设置AI回复消息
-        aiMessage.value = `为你找到 ${jobs.length} 个相关职业，请点击选择感兴趣的岗位：`
+      // 检查是否找到合适的岗位
+      if (!jobs || jobs.length === 0) {
+        aiMessage.value = '职业小顾问没有找到合适的岗位，抱歉~'
+        careerOptions.value = []
+        showCareerOptions.value = false
+        return
       }
-    } catch (error: unknown) {
-      // 判断是否是用户主动取消
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('请求已取消')
-        userMessage.value = ''
-      } else {
-        console.error('发送消息失败:', error)
-      }
-    } finally {
-      isSearching.value = false
-      abortController = null
+
+      // 转换为前端展示用的careerOptions
+      careerOptions.value = jobs.map((job, index) => ({
+        id: index + 1,
+        title: job.job_name,
+        description: job.job_description,
+        major: job.major,
+        similarity: job.similarity / 100,
+      }))
+      showCareerOptions.value = true
+      aiMessage.value = `为你找到 ${jobs.length} 个相关职业，请点击选择感兴趣的岗位：`
     }
+  } catch (error: unknown) {
+    // 判断是否是用户主动取消
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('请求已取消')
+      userMessage.value = ''
+    } else {
+      console.error('发送消息失败:', error)
+    }
+  } finally {
+    isSearching.value = false
+    abortController = null
+    saveSession() // 保存最终状态（无论有无数据），确保刷新后读到正确结果
   }
 }
 
@@ -240,19 +293,13 @@ const selectedCareers = ref<number[]>([])
 const selectCareer = (careerId: number) => {
   const index = selectedCareers.value.indexOf(careerId)
   if (index > -1) {
-    // 已选中，取消选择
     selectedCareers.value.splice(index, 1)
   } else {
-    // 未选中，添加选择（限制最多3个）
     if (selectedCareers.value.length < 3) {
       selectedCareers.value.push(careerId)
     }
   }
-}
-
-// 生成3位随机数凭证
-const generateJobToken = (): string => {
-  return Math.floor(100 + Math.random() * 900).toString()
+  saveSession()
 }
 
 // 跳转到技能页面
@@ -272,7 +319,7 @@ const goToSkillPage = () => {
   careerStore.setJobNames(selectedJobNames)
 
   // 前端生成3位随机数凭证
-  const jobToken = generateJobToken()
+  const jobToken = Math.floor(100 + Math.random() * 900).toString()
   careerStore.setJobToken(jobToken)
 
   // 后台静默保存岗位和凭证（不阻塞跳转）
@@ -290,20 +337,6 @@ const goToSkillPage = () => {
       jobToken: jobToken,
     },
   })
-}
-
-// 波浪动画：将文本拆分为前缀文字 + 波浪动画的....四个点
-const splitWaveText = (text: string) => {
-  if (text.endsWith('....')) {
-    const prefix = text.slice(0, -4)
-    const dots = ['.', '.', '.', '.'].map((char, index) => ({
-      char,
-      index,
-      delay: `${index * 0.6}s`,
-    }))
-    return { prefix, dots }
-  }
-  return { prefix: text, dots: [] }
 }
 
 // 波浪动画循环：监听 animationend，等最后一颗点运行完，延迟0.5秒后再次执行
@@ -344,6 +377,25 @@ onUnmounted(() => {
   --border-color: #284047;
 }
 
+/* ========= 输入框包装（移动端置底） ========= */
+.chat-input-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-dark);
+  border-top: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding-bottom: 5rem; /* 给固定输入框留空间 */
+  }
+}
+
 /* ========= 基础样式 ========= */
 .career-container {
   position: relative;
@@ -358,9 +410,6 @@ onUnmounted(() => {
     sans-serif;
   color: var(--text-primary);
   user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 
 /* ========= 背景样式 ========= */
@@ -450,7 +499,6 @@ onUnmounted(() => {
   display: flex;
   gap: 1rem;
   margin-bottom: 2rem;
-  animation: fadeInUp 0.5s ease;
 }
 
 .message.ai-message {
@@ -462,19 +510,7 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.message-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  background: var(--bg-dark);
-  border: 2px solid var(--border-color);
-  flex-shrink: 0;
-}
-
+/* 用户消息气泡样式 */
 .message-bubble {
   max-width: 70%;
   background: var(--bg-card);
@@ -490,8 +526,6 @@ onUnmounted(() => {
   color: var(--text-primary);
   border: 1px solid var(--border-color);
 }
-
-/* 用户消息气泡样式 */
 
 .message.user-message .message-bubble {
   background: var(--accent-orange);
@@ -605,7 +639,6 @@ onUnmounted(() => {
   margin-top: 3rem;
   padding-top: 2rem;
   border-top: 1px dashed var(--border-color);
-  animation: fadeInUp 0.6s ease;
 }
 
 .selection-info {

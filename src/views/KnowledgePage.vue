@@ -46,7 +46,7 @@
           </div>
         </section>
 
-        <!-- 错题本入口 -->
+        <!-- 收藏本入口 -->
         <section class="wrong-book-section">
           <div class="wrong-book-card">
             <div class="wrong-book-icon">
@@ -59,8 +59,10 @@
               </svg>
             </div>
             <div class="wrong-book-info">
-              <h4 class="wrong-book-title">错题本</h4>
-              <p class="wrong-book-desc">共 <span class="total-wrong">23</span> 道题待练习</p>
+              <h4 class="wrong-book-title">收藏本</h4>
+              <p class="wrong-book-desc">
+                共 <span class="total-wrong">{{ collectCount }}</span> 道题待学习
+              </p>
             </div>
             <button class="btn-wrong-book" @click="goToQuestion">查看全部</button>
           </div>
@@ -236,7 +238,7 @@
               <div class="section-divider">判断题（{{ judgeQuestions.length }}道）</div>
               <div
                 class="question-item"
-                v-for="(question, qIndex) in judgeQuestions"
+                v-for="question in judgeQuestions"
                 :key="'judge-' + question.id"
               >
                 <div class="question-text">
@@ -295,7 +297,7 @@
               <div class="section-divider">选择题（{{ choiceQuestions.length }}道）</div>
               <div
                 class="question-item"
-                v-for="(question, qIndex) in choiceQuestions"
+                v-for="question in choiceQuestions"
                 :key="'choice-' + question.id"
               >
                 <div class="question-text">
@@ -352,6 +354,151 @@
               </div>
             </div>
 
+            <!-- 填空题区域 -->
+            <div class="question-section" v-if="fillQuestions.length > 0">
+              <div class="section-divider">填空题（{{ fillQuestions.length }}道）</div>
+              <div
+                class="question-item"
+                v-for="question in fillQuestions"
+                :key="'fill-' + question.id"
+              >
+                <div class="question-text">
+                  <span v-html="question.questionText.replace(/\\n/g, '<br>')"></span>
+                </div>
+                <div class="fill-inputs-wrapper">
+                  <div
+                    class="fill-input-item"
+                    v-for="(answer, index) in question.correctAnswer?.split('|') || []"
+                    :key="index"
+                  >
+                    <span class="fill-label">{{ index + 1 }}.</span>
+                    <input
+                      type="text"
+                      class="fill-input"
+                      :class="{
+                        'has-content': (answeredQuestions[question.id] as string)
+                          ?.split('|')
+                          [index]?.trim(),
+                        submitted: submittedQuestions.has(question.id),
+                      }"
+                      :disabled="submittedQuestions.has(question.id)"
+                      :value="(answeredQuestions[question.id] as string)?.split('|')[index] || ''"
+                      @input="
+                        handleFillAnswer(
+                          question.id,
+                          index,
+                          ($event.target as HTMLInputElement).value,
+                          (question.correctAnswer?.split('|') || []).length,
+                        )
+                      "
+                      :placeholder="`空${index + 1}`"
+                    />
+                  </div>
+                </div>
+                <!-- 收藏星星 -->
+                <div
+                  class="star-icon"
+                  v-if="submittedQuestions.has(question.id)"
+                  @click="toggleStar(question.id)"
+                  :class="{ filled: starredQuestions[question.id] }"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                    />
+                  </svg>
+                </div>
+                <!-- 答案解析（提交后显示） -->
+                <div class="question-explanation" v-if="submittedQuestions.has(question.id)">
+                  <div class="explanation-label">正确答案：</div>
+                  <div class="explanation-content">
+                    <span
+                      v-for="(answer, idx) in question.correctAnswer?.split('|') || []"
+                      :key="idx"
+                    >
+                      ({{ idx + 1 }}) {{ answer }}&nbsp;&nbsp;
+                    </span>
+                  </div>
+                  <div class="explanation-label" v-if="question.explanation">答案解析：</div>
+                  <div
+                    class="explanation-content"
+                    v-if="question.explanation"
+                    v-html="question.explanation?.replace(/\\n/g, '<br>')"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 分析题区域 -->
+            <div class="question-section" v-if="analysisQuestions.length > 0">
+              <div class="section-divider">分析题（{{ analysisQuestions.length }}道）</div>
+              <div
+                class="question-item"
+                v-for="question in analysisQuestions"
+                :key="'analysis-' + question.id"
+              >
+                <div class="question-text">
+                  <span v-html="question.questionText.replace(/\\n/g, '<br>')"></span>
+                </div>
+                <div class="question-input-wrapper">
+                  <textarea
+                    class="question-text-input analysis-input"
+                    :class="{
+                      'has-content': !!answeredQuestions[question.id],
+                      submitted: submittedQuestions.has(question.id),
+                    }"
+                    :disabled="submittedQuestions.has(question.id)"
+                    :value="answeredQuestions[question.id] || ''"
+                    @input="
+                      handleTextAnswer(question.id, ($event.target as HTMLTextAreaElement).value)
+                    "
+                    placeholder="请输入你的分析..."
+                    rows="4"
+                  ></textarea>
+                </div>
+                <!-- 收藏星星 -->
+                <div
+                  class="star-icon"
+                  v-if="submittedQuestions.has(question.id)"
+                  @click="toggleStar(question.id)"
+                  :class="{ filled: starredQuestions[question.id] }"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                    />
+                  </svg>
+                </div>
+                <!-- 提交后显示后端返回的评语和参考答案 -->
+                <div class="question-explanation" v-if="submittedQuestions.has(question.id)">
+                  <template v-if="analysisFeedback[question.id]">
+                    <div class="explanation-label" v-if="analysisFeedback[question.id]?.[0]">
+                      评分结果：
+                    </div>
+                    <div
+                      class="explanation-content feedback-score"
+                      v-if="analysisFeedback[question.id]?.[0]"
+                    >
+                      {{ analysisFeedback[question.id]?.[0] }}
+                    </div>
+                    <div class="explanation-label" v-if="analysisFeedback[question.id]?.[1]">
+                      AI 评语：
+                    </div>
+                    <div
+                      class="explanation-content feedback-content"
+                      v-if="analysisFeedback[question.id]?.[1]"
+                      v-html="analysisFeedback[question.id]?.[1]?.replace(/\\n/g, '<br>') ?? ''"
+                    ></div>
+                  </template>
+                  <div class="explanation-label">参考答案：</div>
+                  <div
+                    class="explanation-content"
+                    v-html="question.correctAnswer?.replace(/\\n/g, '<br>')"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
             <div class="questions-footer">
               <!-- 提交中状态（按钮点击后立即显示） -->
               <div v-if="isSubmittingGroup" class="submitting-hint">
@@ -362,14 +509,29 @@
                 v-else-if="!isSubmissionCompleted"
                 class="btn-submit-set"
                 :disabled="
-                  currentGroupQuestions.every((q) => answeredQuestions[q.id] === undefined)
+                  currentGroupQuestions.every((q) => {
+                    if (q.questionType === 'fill' || q.questionType === 'analysis') {
+                      return !answeredQuestions[q.id]
+                    }
+                    return answeredQuestions[q.id] === undefined
+                  })
                 "
                 @click="submitGroupAnswers"
               >
                 提交答案
               </button>
-              <!-- 提交完成后显示加入错题本 -->
-              <button v-else class="btn-add-wrong-book" @click="addToWrongBook">加入错题本</button>
+              <!-- 提交完成后显示收藏 -->
+              <div v-else-if="isCollecting" class="submitting-hint">
+                <WaveLoading text="收藏中" />
+              </div>
+              <button
+                v-else
+                class="btn-add-wrong-book"
+                :disabled="currentGroupQuestions.every((q) => !starredQuestions[q.id])"
+                @click="addToWrongBook"
+              >
+                加入收藏
+              </button>
             </div>
           </div>
           <div class="question-bank-empty" v-if="Object.keys(groupedQuestions).length === 0">
@@ -480,6 +642,7 @@ import {
   getUserQuestions,
   getUserSelectedSkills,
   submitQuestionAnswer,
+  collectQuestion,
 } from '@/api/agent'
 import type { SkillResult } from '@/stores/skillResults'
 
@@ -626,9 +789,7 @@ onMounted(async () => {
     const res = await getUserQuestions(userId)
     console.log('API返回数据:', res.data)
     if (res.code === 200 && res.data) {
-      console.log('API数据第一条:', JSON.stringify(res.data[0]))
       userQuestionsStore.setUserQuestions(res.data as UserQuestion[])
-      console.log('Store中的数据:', userQuestionsStore.userQuestions)
     }
   } catch (e) {
     console.error('加载题目数据失败', e)
@@ -636,7 +797,6 @@ onMounted(async () => {
 
   // 恢复正在生成的状态：如果存在生成中的任务，轮询等待结果
   if (questionsStore.generatingKey) {
-    console.log('检测到正在生成的任务:', questionsStore.generatingKey)
     pollGeneratingStatus(userId)
   }
 })
@@ -707,8 +867,13 @@ const questionBankSkillIndex = ref<number>(-1)
 // 当前选中的知识点分组
 const selectedKnowledgeGroup = ref<string | null>(null)
 
+// 收藏数量（从 userQuestionsStore 中取 isCollect === 1 的题目数）
+const collectCount = computed(() => {
+  return userQuestionsStore.userQuestions.filter((q) => q.isCollect === 1).length
+})
+
 // 用户答题记录 key: question.id, value: 选中的选项索引（0=A, 1=B, 2=C, 3=D）
-const answeredQuestions = ref<Record<string, number>>({})
+const answeredQuestions = ref<Record<string, number | string>>({})
 
 // 已提交的题目集合 key: question.id
 const submittedQuestions = ref<Set<string>>(new Set())
@@ -719,8 +884,33 @@ const isSubmissionCompleted = ref(false)
 // 当前分组是否正在提交中（点击提交后、接口返回前）
 const isSubmittingGroup = ref(false)
 
-// 题目收藏状态 key: question.id, value: 是否收藏
+// 当前分组是否正在收藏中
+const isCollecting = ref(false)
+
+// 题目收藏状态 key: question.id, value: 是否收藏（默认全部不收藏）
 const starredQuestions = ref<Record<string, boolean>>({})
+
+// 分析题提交后后端返回的反馈数据：key=questionId, value=["0", "评语"]
+const analysisFeedback = ref<Record<string, string[]>>(loadAnalysisFeedbackFromSession())
+
+// 从 sessionStorage 恢复分析题反馈数据
+function loadAnalysisFeedbackFromSession(): Record<string, string[]> {
+  try {
+    const stored = sessionStorage.getItem('analysis-feedback')
+    return stored ? JSON.parse(stored) : {}
+  } catch {
+    return {}
+  }
+}
+
+// 保存分析题反馈数据到 sessionStorage
+function saveAnalysisFeedbackToSession() {
+  try {
+    sessionStorage.setItem('analysis-feedback', JSON.stringify(analysisFeedback.value))
+  } catch {
+    // ignore
+  }
+}
 
 // 当前技能的题目按 questionId 分组（相同的 questionId 为一组）
 const groupedQuestions = computed(() => {
@@ -740,9 +930,19 @@ const judgeQuestions = computed(() => {
   return currentGroupQuestions.value.filter((q) => q.questionType === 'judge')
 })
 
-// 选择题列表（按 questionType 筛选）
+// 选择题列表（按 questionType 筛选，排除填空和分析题）
 const choiceQuestions = computed(() => {
-  return currentGroupQuestions.value.filter((q) => q.questionType !== 'judge')
+  return currentGroupQuestions.value.filter((q) => q.questionType === 'choice')
+})
+
+// 填空题列表
+const fillQuestions = computed(() => {
+  return currentGroupQuestions.value.filter((q) => q.questionType === 'fill')
+})
+
+// 分析题列表
+const analysisQuestions = computed(() => {
+  return currentGroupQuestions.value.filter((q) => q.questionType === 'analysis')
 })
 
 // 当前选中的知识点分组的题目
@@ -751,9 +951,32 @@ const currentGroupQuestions = computed(() => {
   return groupedQuestions.value[selectedKnowledgeGroup.value] || []
 })
 
-// 切换题目收藏状态
-function toggleStar(questionId: string) {
-  starredQuestions.value[questionId] = !starredQuestions.value[questionId]
+// 切换题目收藏状态（调用收藏接口）
+async function toggleStar(questionId: string) {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+
+  const isCollect = !starredQuestions.value[questionId]
+  starredQuestions.value[questionId] = isCollect
+
+  try {
+    // 找到该题目的数据
+    const q = currentGroupQuestions.value.find((q) => q.id === questionId)
+    if (!q) return
+    await collectQuestion({
+      user_id: userId,
+      question_id: questionId,
+      is_collect: isCollect ? 1 : 0,
+      question_type: q.questionType,
+      job_name: q.jobName,
+      skill_name: q.skillName,
+      knowledge_name: q.knowledgeName,
+    })
+  } catch (error) {
+    // 接口失败，回滚收藏状态
+    starredQuestions.value[questionId] = !isCollect
+    console.error('收藏失败:', error)
+  }
 }
 
 // 清理选项文本，去除前面的 A. B. C. D. 等前缀
@@ -775,6 +998,28 @@ function handleOptionClick(questionId: string, optionIndex: number) {
   }
 }
 
+// 处理填空题输入（多个空用 | 连接）
+function handleFillAnswer(questionId: string, index: number, value: string, totalCount: number) {
+  if (submittedQuestions.value.has(questionId)) return
+  // 获取当前已有的答案数组
+  const currentAnswer = (answeredQuestions.value[questionId] as string) || ''
+  const answers = currentAnswer ? currentAnswer.split('|') : []
+  // 确保数组长度足够
+  while (answers.length < totalCount) {
+    answers.push('')
+  }
+  // 更新对应位置的答案
+  answers[index] = value
+  // 用 | 连接所有答案
+  answeredQuestions.value[questionId] = answers.join('|')
+}
+
+// 处理分析题输入
+function handleTextAnswer(questionId: string, answer: string) {
+  if (submittedQuestions.value.has(questionId)) return
+  answeredQuestions.value[questionId] = answer
+}
+
 // 提交当前分组答案
 function submitGroupAnswers() {
   if (!playerStore.playerInfo?.id) {
@@ -783,9 +1028,12 @@ function submitGroupAnswers() {
   }
 
   // 检查是否有未做的题目
-  const unansweredCount = currentGroupQuestions.value.filter(
-    (q) => answeredQuestions.value[q.id] === undefined,
-  ).length
+  const unansweredCount = currentGroupQuestions.value.filter((q) => {
+    if (q.questionType === 'fill' || q.questionType === 'analysis') {
+      return !answeredQuestions.value[q.id]
+    }
+    return answeredQuestions.value[q.id] === undefined
+  }).length
 
   // 显示二次确认弹窗
   confirmDialog.value = {
@@ -796,16 +1044,76 @@ function submitGroupAnswers() {
 
 // 执行实际提交
 async function doSubmitAnswers() {
+  if (!playerStore.playerInfo?.id) {
+    showToast('用户信息不存在，请重新登录', 'error')
+    isSubmitting.value = false
+    isSubmittingGroup.value = false
+    return
+  }
   const userId = playerStore.playerInfo.id
 
   // 提交每道题目的答案
   for (const q of currentGroupQuestions.value) {
-    submittedQuestions.value.add(q.id)
+    // 填空题：逐个空对比
+    if (q.questionType === 'fill') {
+      const userAnswerText = answeredQuestions.value[q.id] as string
+      if (!userAnswerText) continue
+      // 分割成数组逐个对比（忽略大小写和空格）
+      const userAnswers = userAnswerText.split('|').map((a) => a.trim().toLowerCase())
+      const correctAnswers = (q.correctAnswer || '').split('|').map((a) => a.trim().toLowerCase())
+      // 每个空都必须正确
+      const isAllCorrect =
+        userAnswers.length === correctAnswers.length &&
+        userAnswers.every((ans, i) => ans === correctAnswers[i])
+      const isCorrect = isAllCorrect ? 1 : 0
+      try {
+        await submitQuestionAnswer({
+          user_id: userId,
+          question_id: q.id,
+          is_correct: isCorrect,
+          question_type: q.questionType,
+          job_name: q.jobName,
+          skill_name: q.skillName,
+          knowledge_name: q.knowledgeName,
+        })
+        submittedQuestions.value.add(q.id)
+      } catch (error) {
+        console.error('提交答案失败:', error)
+      }
+      continue
+    }
 
-    // 判断是否答对：用户有选择且答案正确为 true，否则为 false（未选也算错）
-    const userAnswerIndex = answeredQuestions.value[q.id]
+    // 分析题：传入用户输入文本，由后端判断正确性
+    if (q.questionType === 'analysis') {
+      const userAnswerText = answeredQuestions.value[q.id] as string
+      if (!userAnswerText) continue
+      try {
+        const res = await submitQuestionAnswer({
+          user_id: userId,
+          question_id: q.id,
+          is_correct: 1,
+          question_type: q.questionType,
+          job_name: q.jobName,
+          skill_name: q.skillName,
+          knowledge_name: q.knowledgeName,
+          userInput: userAnswerText,
+          questionText: q.questionText,
+          correctAnswer: q.correctAnswer,
+        })
+        if (res.code === 200 && Array.isArray(res.data)) {
+          // 后端返回 ["0", "评语"]，保存展示
+          analysisFeedback.value[q.id] = res.data
+          saveAnalysisFeedbackToSession()
+        }
+        submittedQuestions.value.add(q.id)
+      } catch (error) {
+        console.error('提交答案失败:', error)
+      }
+      continue
+    }
 
-    // 如果没有选择，跳过调用接口
+    // 判断题和选择题：使用选项索引
+    const userAnswerIndex = answeredQuestions.value[q.id] as number | undefined
     if (userAnswerIndex === undefined) continue
 
     // 将索引转换为字母（0->A, 1->B, 2->C, 3->D）
@@ -822,6 +1130,7 @@ async function doSubmitAnswers() {
         skill_name: q.skillName,
         knowledge_name: q.knowledgeName,
       })
+      submittedQuestions.value.add(q.id)
     } catch (error) {
       console.error('提交答案失败:', error)
     }
@@ -833,13 +1142,38 @@ async function doSubmitAnswers() {
   isSubmissionCompleted.value = true
 }
 
-// 加入错题本
-function addToWrongBook() {
-  const wrongQuestions = currentGroupQuestions.value.filter((q) => {
-    const userAnswer = answeredQuestions.value[q.id]
-    return userAnswer && userAnswer !== q.correctAnswer
-  })
-  alert(`已将 ${wrongQuestions.length} 道错题加入错题本`)
+// 加入收藏（只收藏星星是亮的题目）
+async function addToWrongBook() {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) {
+    showToast('用户信息不存在', 'error')
+    return
+  }
+
+  // 只处理星星选中的题目
+  const collectQuestions = currentGroupQuestions.value.filter((q) => starredQuestions.value[q.id])
+
+  isCollecting.value = true
+  let collectCount = 0
+  for (const q of collectQuestions) {
+    try {
+      await collectQuestion({
+        user_id: userId,
+        question_id: q.id,
+        is_collect: 1,
+        question_type: q.questionType,
+        job_name: q.jobName,
+        skill_name: q.skillName,
+        knowledge_name: q.knowledgeName,
+      })
+      collectCount++
+    } catch (error) {
+      console.error('收藏失败:', error)
+    }
+  }
+
+  isCollecting.value = false
+  showToast(`已将 ${collectCount} 道题加入收藏`, 'success')
 }
 
 // 当前技能的知识点维度
@@ -849,14 +1183,9 @@ const currentSkillDimensions = computed(() => {
 
   const jobName = career.name
   const skillName = career.skills[currentSkillIndex.value]?.name
+  if (!skillName) return []
 
-  // 先从 skillKnowledgeStore 查找（需匹配 job_name 和 skill_name）
-  const knowledgeData = skillKnowledgeStore.skillKnowledgeData
-  if (knowledgeData?.job_name === jobName && knowledgeData?.skill_name === skillName) {
-    return knowledgeData.dimensions || []
-  }
-
-  // 再从 skillResultsStore 查找
+  // 先从 skillResultsStore 查找（已确认学习的技能）
   const results = skillResultsStore.skillResults[jobName]
   if (results) {
     const found = results.find((s) => s.skill_name === skillName)
@@ -865,29 +1194,14 @@ const currentSkillDimensions = computed(() => {
     }
   }
 
+  // 再从 skillKnowledgeStore 查找（getUserKnowledgeData 或 fetchSkillKnowledgePoints 预加载的数据）
+  const knowledgeData = skillKnowledgeStore.getSkillKnowledge(jobName, skillName)
+  if (knowledgeData) {
+    return knowledgeData.dimensions || []
+  }
+
   return []
 })
-
-// 获取题库面板当前技能的总知识点维度数
-function getCurrentSkillTotalDimensions(): number {
-  const career = filteredCareers.value[questionBankJobIndex.value]
-  if (!career) return 0
-
-  const jobName = career.name
-  const skillName = career.skills[questionBankSkillIndex.value]?.name
-  if (!skillName) return 0
-
-  const knowledgeData = skillKnowledgeStore.skillKnowledgeData
-  if (knowledgeData?.job_name === jobName && knowledgeData?.skill_name === skillName) {
-    return knowledgeData.dimensions.length
-  }
-  const results = skillResultsStore.skillResults[jobName]
-  if (results) {
-    const found = results.find((s) => s.skill_name === skillName)
-    if (found) return found.dimensions.length
-  }
-  return 0
-}
 
 // 关闭弹窗
 function closeDialog() {
@@ -921,6 +1235,8 @@ function closeQuestionBank() {
   selectedKnowledgeGroup.value = null
   answeredQuestions.value = {}
   submittedQuestions.value.clear()
+  analysisFeedback.value = {}
+  sessionStorage.removeItem('analysis-feedback')
   starredQuestions.value = {}
   isSubmittingGroup.value = false
   isSubmissionCompleted.value = false
@@ -970,14 +1286,10 @@ const currentSkillQuestions = computed(() => {
   const skillName = career.skills[questionBankSkillIndex.value]?.name
   if (!skillName) return []
 
-  console.log('过滤条件 - jobName:', career.name, 'skillName:', skillName)
-  console.log('Store中的所有题目:', userQuestionsStore.userQuestions)
-
   // 从 userQuestionsStore 获取该岗位+技能的题目
   const filtered = userQuestionsStore.userQuestions.filter(
     (q) => q.jobName === career.name && q.skillName === skillName,
   )
-  console.log('过滤后的题目:', filtered)
   return filtered
 })
 
@@ -1013,7 +1325,7 @@ async function handleGenerateQuestions() {
     showToast('用户信息不存在，请重新登录', 'error')
     return
   }
-  const userId = playerStore.playerInfo.id
+  const userId = playerStore.playerInfo?.id
 
   // 设置正在生成状态（持久化到 localStorage）
   questionsStore.setGenerating(career.name, skill.name)
@@ -1046,7 +1358,7 @@ async function handleGenerateQuestions() {
     } else {
       showToast(response.message || '生成题目失败', 'error')
     }
-  } catch (error) {
+  } catch {
     showToast('生成题目失败，请重试', 'error')
   } finally {
     // 清除生成状态（从 localStorage 移除）
@@ -2064,7 +2376,7 @@ async function handleGenerateQuestions() {
   box-shadow: none;
 }
 
-/* ========= 加入错题本按钮 ========= */
+/* ========= 加入收藏按钮 ========= */
 .btn-add-wrong-book {
   padding: 0.6rem 1.5rem;
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -2078,7 +2390,18 @@ async function handleGenerateQuestions() {
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
-.btn-add-wrong-book:hover {
+.btn-add-wrong-book:disabled {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-add-wrong-book:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-add-wrong-book:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
@@ -2121,6 +2444,115 @@ async function handleGenerateQuestions() {
 .star-icon.filled svg {
   fill: #f59e0b;
   stroke: #f59e0b;
+}
+
+/* ========= 填空题多个输入框 ========= */
+.fill-inputs-wrapper {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.fill-input-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fill-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.fill-input {
+  width: 160px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  color: #374151;
+  background: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.fill-input:focus {
+  outline: none;
+  border-color: #2ec4b6;
+  box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.15);
+}
+
+.fill-input.has-content {
+  border-color: #2ec4b6;
+  background: #f0fdfb;
+}
+
+.fill-input.submitted {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.fill-input::placeholder {
+  color: #9ca3af;
+}
+
+/* ========= 填空题和分析题输入框 ========= */
+.question-input-wrapper {
+  margin-top: 0.8rem;
+}
+
+.question-text-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  color: #374151;
+  background: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 60px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.question-text-input:focus {
+  outline: none;
+  border-color: #2ec4b6;
+  box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.15);
+}
+
+.question-text-input.has-content {
+  border-color: #2ec4b6;
+  background: #f0fdfb;
+}
+
+.question-text-input.submitted {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.question-text-input::placeholder {
+  color: #9ca3af;
+}
+
+.question-text-input.analysis-input {
+  min-height: 100px;
+}
+
+/* ========= 答案解析标签 ========= */
+.explanation-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #166534;
+  margin-top: 0.8rem;
+}
+
+.explanation-label:first-child {
+  margin-top: 0;
 }
 
 /* ========= 答案解析 ========= */
@@ -2364,15 +2796,15 @@ async function handleGenerateQuestions() {
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.2rem;
-  background: var(--bg-card);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: #fffdf5;
+  border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: 10px;
   transition: all 0.3s;
 }
 
 .wrong-book-card:hover {
-  border-color: #ef4444;
-  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.15);
+  border-color: #f59e0b;
+  box-shadow: 0 8px 30px rgba(245, 158, 11, 0.15);
 }
 
 .wrong-book-icon {
@@ -2381,7 +2813,7 @@ async function handleGenerateQuestions() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(245, 158, 11, 0.15);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -2389,7 +2821,7 @@ async function handleGenerateQuestions() {
 .wrong-book-icon svg {
   width: 20px;
   height: 20px;
-  color: #ef4444;
+  color: #f59e0b;
 }
 
 .wrong-book-info {
@@ -2410,7 +2842,7 @@ async function handleGenerateQuestions() {
 }
 
 .total-wrong {
-  color: #ef4444;
+  color: #f59e0b;
   font-weight: 600;
 }
 
@@ -2419,16 +2851,16 @@ async function handleGenerateQuestions() {
   font-size: 0.85rem;
   font-weight: 600;
   background: transparent;
-  border: 1px solid #ef4444;
-  color: #ef4444;
+  border: 1px solid #f59e0b;
+  color: #f59e0b;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-wrong-book:hover {
-  background: #ef4444;
-  color: var(--bg-dark);
+  background: #f59e0b;
+  color: #fff;
   transform: scale(1.02);
 }
 

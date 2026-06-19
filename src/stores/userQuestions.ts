@@ -12,6 +12,7 @@ export interface UserQuestion {
   knowledgeName: string
   jobName: string
   id: string
+  isCollect?: number // 收藏状态：1 收藏 / 0 未收藏
   options?: string[] // 选择题有选项，判断题没有
 }
 

@@ -33,7 +33,7 @@
             highlightText=""
             placeholder="告诉我你想学什么，小顾问来帮你规划~"
             :isLoading="isSendingMessage"
-            :disabled="!isSkillConfirmed || hasUnansweredQuestion"
+            :disabled="!isSkillConfirmed || hasUnansweredQuestion || isConfirming"
             :waitingForAnswer="hasUnansweredQuestion"
             :hideHeader="hasEverConfirmed"
             @sendMessage="handleSendMessage"
@@ -47,7 +47,7 @@
                 <ul class="suggestions">
                   <li>"你好啊，你叫什么名字"</li>
                   <li>"帮我出一个基础题的选择题"</li>
-                  <li>"这个知识点不太懂，帮我生成讲解视频"</li>
+                  <li>"这个知识点不太懂，帮我讲解一下"</li>
                 </ul>
               </div>
             </div>
@@ -151,7 +151,7 @@
                     </div>
                     <div v-if="record.type" class="question-type">{{ record.type }}</div>
                     <div class="question-stem">{{ record.stem }}</div>
-                    <!-- 代码片段（如果有）-->
+                    <!-- 代码片段-->
                     <pre v-if="record.codeSnippet" class="code-snippet">{{
                       record.codeSnippet
                     }}</pre>
@@ -531,8 +531,16 @@ const confirmSkill = async () => {
     if (skillExists) {
       isSkillConfirmed.value = true
       hasEverConfirmed.value = true
+      // 添加完成提示到聊天区
+      chatRecords.value.push({
+        userMessage: '',
+        aiReply: '该技能已学习过，无需重新规划',
+      })
+      scrollToBottom()
       // 移动端滚动到顶部
       scrollToTop()
+      // 立即持久化，避免切页丢失
+      saveChatRecordsToSession()
       return
     }
 
@@ -571,6 +579,8 @@ const confirmSkill = async () => {
             if (lastRecord) {
               lastRecord.aiReply = '小顾问帮你规划完毕，记得查收哦~（下载完成）'
             }
+            // 立即持久化，避免切页丢失
+            saveChatRecordsToSession()
             // 保存技能学习结果到store
             const jobName = knowledgeData.job_name
             const skillName = knowledgeData.skill_name
@@ -583,12 +593,14 @@ const confirmSkill = async () => {
             if (lastRecord) {
               lastRecord.aiReply = '生成失败，请稍后重试'
             }
+            saveChatRecordsToSession()
           }
         } else {
           const lastRecord = chatRecords.value[chatRecords.value.length - 1]
           if (lastRecord) {
             lastRecord.aiReply = '生成失败，请稍后重试'
           }
+          saveChatRecordsToSession()
         }
       } catch (error) {
         console.error('[PPT] 请求异常:', error)
@@ -596,6 +608,7 @@ const confirmSkill = async () => {
         if (lastRecord) {
           lastRecord.aiReply = '生成失败，请稍后重试'
         }
+        saveChatRecordsToSession()
       }
     } else {
       chatRecords.value.push({
@@ -604,6 +617,9 @@ const confirmSkill = async () => {
       })
       scrollToBottom()
     }
+
+    // 直接保存到 sessionStorage，不依赖 watch（组件卸载后 watch 不触发）
+    saveChatRecordsToSession()
   } finally {
     isConfirming.value = false
   }
@@ -1012,11 +1028,20 @@ const handleSendMessage = async (message: string) => {
         } else {
           // 未知的 toolType 或 tool 字段缺失，使用通用处理
           console.warn('未知的 toolType:', toolType, 'innerData:', innerData)
-          lastRecord.aiReply = innerData.answer || innerData.data || '小顾问处理完毕，但格式不太对，请重试~'
+          lastRecord.aiReply =
+            innerData.answer || innerData.data || '小顾问处理完毕，但格式不太对，请重试~'
         }
         scrollToBottom()
       }
+    } else {
+      // 接口返回异常，更新占位消息
+      const lastRecord = chatRecords.value[chatRecords.value.length - 1]
+      if (lastRecord) {
+        lastRecord.aiReply = '小顾问处理出错了，请稍后重试~'
+      }
     }
+    // 立即持久化，避免切页丢失
+    saveChatRecordsToSession()
   } catch (error: unknown) {
     // 判断是否是用户主动取消
     if (error instanceof Error && error.name === 'AbortError') {
@@ -1030,6 +1055,7 @@ const handleSendMessage = async (message: string) => {
       if (lastRecord && lastRecord.aiReply === '小顾问思考中....') {
         lastRecord.aiReply = '小顾问处理出错了，请稍后重试~'
       }
+      saveChatRecordsToSession()
     }
   } finally {
     isSendingMessage.value = false
