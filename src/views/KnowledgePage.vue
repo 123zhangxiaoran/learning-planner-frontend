@@ -101,12 +101,9 @@
                     <button
                       class="btn-action btn-generate"
                       @click="handleGenerate(cIndex, sIndex)"
-                      :disabled="questionsStore.generatingKey !== null"
+                      :disabled="questionsStore.isGenerating()"
                     >
-                      <span
-                        v-if="questionsStore.generatingKey === `${career.name}::${skill.name}`"
-                        class="loading-text"
-                      >
+                      <span v-if="questionsStore.isGenerating()" class="loading-text">
                         专属题目定制中
                         <WaveLoading />
                       </span>
@@ -629,7 +626,7 @@
 <script setup lang="ts">
 import NavBar from '@/components/layout/NavBar.vue'
 import WaveLoading from '@/components/layout/WaveLoading.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCareerStore } from '@/stores/career'
 import { useSkillResultsStore } from '@/stores/skillResults'
@@ -637,6 +634,7 @@ import { useSkillKnowledgeStore } from '@/stores/skillKnowledge'
 import { usePlayerStore } from '@/stores/user'
 import { useUserQuestionsStore, type UserQuestion } from '@/stores/userQuestions'
 import { useQuestionsStore } from '@/stores/questions'
+import axios from 'axios'
 import {
   generateQuestions as generateQuestionsApi,
   getUserQuestions,
@@ -796,58 +794,79 @@ onMounted(async () => {
   }
 
   // 恢复正在生成的状态：如果存在生成中的任务，轮询等待结果
-  if (questionsStore.generatingKey) {
-    pollGeneratingStatus(userId)
+  if (questionsStore.generatingTaskId) {
+    startPolling()
   }
 })
 
-// 轮询等待生成完成
-async function pollGeneratingStatus(userId: number) {
-  const maxAttempts = 60 // 最多轮询60次（5分钟，每5秒一次）
-  let attempts = 0
+// 轮询定时器
+let pollTimer: ReturnType<typeof setTimeout> | null = null
 
-  const check = async () => {
-    attempts++
-    if (attempts > maxAttempts) {
-      console.log('轮询超时，清除生成状态')
-      questionsStore.clearGenerating()
-      showToast('题目生成超时，请重新尝试', 'error')
-      return
-    }
-
-    try {
-      // 查询最新题目数据
-      const questionsRes = await getUserQuestions(userId)
-      if (questionsRes.code === 200 && questionsRes.data) {
-        const questionsData = questionsRes.data as UserQuestion[]
-        // 检查是否有新数据（与之前的数据比较）
-        const currentCount = userQuestionsStore.userQuestions.length
-        userQuestionsStore.setUserQuestions(questionsData)
-
-        // 如果数据有变化，说明生成完成
-        if (questionsData.length > currentCount) {
-          console.log('检测到新题目，生成完成')
-          questionsStore.clearGenerating()
-          showToast('题目生成成功', 'success')
-          return
-        }
-      }
-
-      // 继续轮询
-      setTimeout(check, 5000)
-    } catch (error) {
-      console.error('轮询检查失败:', error)
-      // 出错也继续轮询，直到超时
-      setTimeout(check, 5000)
-    }
-  }
-
-  // 开始轮询
-  setTimeout(check, 3000) // 延迟3秒开始第一次检查
+// 启动轮询检查任务状态
+function startPolling() {
+  // 先停止之前的轮询
+  stopPolling()
+  // 立即执行一次检查
+  checkTaskStatus()
 }
 
-// 是否正在生成题目（使用 store 中的 generatingKey，支持页面刷新后恢复）
-const isGenerating = computed(() => questionsStore.generatingKey !== null)
+// 停止轮询
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+// 检查任务状态
+async function checkTaskStatus() {
+  const taskId = questionsStore.generatingTaskId
+  if (!taskId) return
+
+  try {
+    // 调用状态查询接口（直接返回布尔值，不使用标准响应格式）
+    const res = await axios.get<boolean>(`/api/user/taskStatus/${taskId}`)
+
+    // 接口直接返回布尔值
+    if (res.data === true) {
+      // 任务完成，清除UUID并获取题目
+      questionsStore.clearGenerating()
+      await fetchUserQuestionsAfterComplete()
+    } else {
+      // 未完成，10秒后再次检查
+      pollTimer = setTimeout(checkTaskStatus, 10000)
+    }
+  } catch (error) {
+    console.error('查询任务状态失败:', error)
+    // 出错也继续轮询
+    pollTimer = setTimeout(checkTaskStatus, 10000)
+  }
+}
+
+// 任务完成后获取题目数据
+async function fetchUserQuestionsAfterComplete() {
+  const userId = playerStore.playerInfo?.id
+  if (!userId) return
+
+  try {
+    const res = await getUserQuestions(userId)
+    if (res.code === 200 && res.data) {
+      userQuestionsStore.setUserQuestions(res.data as UserQuestion[])
+      showToast('题目生成成功', 'success')
+    }
+  } catch (e) {
+    console.error('加载题目数据失败', e)
+    showToast('加载题目失败', 'error')
+  }
+}
+
+// 页面卸载时停止轮询
+onUnmounted(() => {
+  stopPolling()
+})
+
+// 是否正在生成题目（使用 store 中的 generatingTaskId，支持页面刷新后恢复）
+const isGenerating = computed(() => questionsStore.isGenerating())
 
 // 弹窗显示状态
 const showDialog = ref(false)
@@ -1112,7 +1131,31 @@ async function doSubmitAnswers() {
       continue
     }
 
-    // 判断题和选择题：使用选项索引
+    // 判断题：单独处理，correctAnswer 存的是"正确"/"错误"中文文本
+    if (q.questionType === 'judge') {
+      const userAnswerIndex = answeredQuestions.value[q.id] as number | undefined
+      if (userAnswerIndex === undefined) continue
+      // 0 -> "正确", 1 -> "错误"
+      const userAnswerText = userAnswerIndex === 0 ? '正确' : '错误'
+      const isCorrect = userAnswerText === q.correctAnswer
+      try {
+        await submitQuestionAnswer({
+          user_id: userId,
+          question_id: q.id,
+          is_correct: isCorrect ? 1 : 0,
+          question_type: q.questionType,
+          job_name: q.jobName,
+          skill_name: q.skillName,
+          knowledge_name: q.knowledgeName,
+        })
+        submittedQuestions.value.add(q.id)
+      } catch (error) {
+        console.error('提交答案失败:', error)
+      }
+      continue
+    }
+
+    // 选择题：使用选项索引
     const userAnswerIndex = answeredQuestions.value[q.id] as number | undefined
     if (userAnswerIndex === undefined) continue
 
@@ -1327,9 +1370,6 @@ async function handleGenerateQuestions() {
   }
   const userId = playerStore.playerInfo?.id
 
-  // 设置正在生成状态（持久化到 localStorage）
-  questionsStore.setGenerating(career.name, skill.name)
-
   // 根据选中的索引从原始数据获取完整的二维数组
   const fullDimensions = currentSkillDimensions.value.filter((_, index) =>
     selectedDimensionIndices.value.has(index),
@@ -1347,22 +1387,17 @@ async function handleGenerateQuestions() {
       user_id: userId,
     })
 
-    if (response.code === 200) {
-      // 生成成功，立即调用 getUserQuestions 获取最新题目数据
-      const questionsRes = await getUserQuestions(userId)
-      if (questionsRes.code === 200 && questionsRes.data) {
-        const questionsData = questionsRes.data as UserQuestion[]
-        userQuestionsStore.setUserQuestions(questionsData)
-        showToast('题目生成成功', 'success')
-      }
+    if (response.code === 200 && response.data) {
+      // 获取返回的 UUID，保存并启动轮询
+      const taskId = response.data
+      questionsStore.setGenerating(taskId)
+      showToast('题目生成中，请稍候...', 'info')
+      startPolling()
     } else {
       showToast(response.message || '生成题目失败', 'error')
     }
   } catch {
     showToast('生成题目失败，请重试', 'error')
-  } finally {
-    // 清除生成状态（从 localStorage 移除）
-    questionsStore.clearGenerating()
   }
 }
 </script>

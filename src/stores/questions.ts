@@ -5,7 +5,7 @@ import type { GeneratedQuestion } from '@/api/agent'
 // 存储键名
 const STORAGE_KEY = 'questions-store'
 const LAST_CLEAR_KEY = 'questions-last-clear-time'
-const GENERATING_KEY = 'questions-generating' // 正在生成的技能key
+const GENERATING_KEY = 'questions-generating' // 正在生成的任务UUID
 const EXPIRE_DAYS = 7 // 7天后自动清除
 
 // 题目集合（每次生成的一批题目）
@@ -46,27 +46,9 @@ const checkAndClearExpired = () => {
   return false
 }
 
-// 检查正在生成的状态是否过期（超过5分钟视为失效），未过期则返回key
-const getGeneratingKeyFromStorage = (): string | null => {
-  const generating = localStorage.getItem(GENERATING_KEY)
-  if (!generating) return null
-
-  try {
-    const data = JSON.parse(generating)
-    const elapsed = Date.now() - data.timestamp
-    const fiveMinutes = 5 * 60 * 1000
-
-    if (elapsed > fiveMinutes) {
-      // 超过5分钟，清除状态
-      localStorage.removeItem(GENERATING_KEY)
-      console.log('生成状态已过期，清除')
-      return null
-    }
-    return data.key || null
-  } catch {
-    localStorage.removeItem(GENERATING_KEY)
-    return null
-  }
+// 从localStorage获取正在生成的任务UUID
+const getGeneratingTaskIdFromStorage = (): string | null => {
+  return localStorage.getItem(GENERATING_KEY)
 }
 
 // 从 localStorage 初始化
@@ -75,8 +57,7 @@ const initFromStorage = (): Record<string, QuestionSet[]> => {
   if (checkAndClearExpired()) {
     return {}
   }
-  // 检查生成状态是否过期
-  getGeneratingKeyFromStorage()
+  // 无需检查过期，等待接口返回true后自动清除
 
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -106,9 +87,9 @@ export const useQuestionsStore = defineStore('questions', () => {
   // 使用普通对象代替 Map，确保 Vue 响应式正常
   const questionSetsByKey = ref<Record<string, QuestionSet[]>>(initialData)
 
-  // 正在生成的技能标识（从localStorage恢复）
-  const generatingKey = ref<string | null>(getGeneratingKeyFromStorage())
-  console.log('正在生成的key:', generatingKey.value)
+  // 正在生成的任务UUID（从localStorage恢复）
+  const generatingTaskId = ref<string | null>(getGeneratingTaskIdFromStorage())
+  console.log('正在生成的任务ID:', generatingTaskId.value)
 
   // 保存到 localStorage
   const saveToStorage = () => {
@@ -129,25 +110,21 @@ export const useQuestionsStore = defineStore('questions', () => {
     return `${jobName}::${skillName}`
   }
 
-  // 设置正在生成状态（刷新页面也能恢复）
-  const setGenerating = (jobName: string, skillName: string) => {
-    generatingKey.value = getSetKey(jobName, skillName)
-    localStorage.setItem(GENERATING_KEY, JSON.stringify({
-      key: generatingKey.value,
-      timestamp: Date.now(),
-    }))
+  // 设置正在生成状态（存储任务UUID）
+  const setGenerating = (taskId: string) => {
+    generatingTaskId.value = taskId
+    localStorage.setItem(GENERATING_KEY, taskId)
   }
 
   // 清除正在生成状态
   const clearGenerating = () => {
-    generatingKey.value = null
+    generatingTaskId.value = null
     localStorage.removeItem(GENERATING_KEY)
   }
 
-  // 检查是否正在生成某个技能
-  const isGenerating = (jobName: string, skillName: string): boolean => {
-    const key = getSetKey(jobName, skillName)
-    return generatingKey.value === key
+  // 是否正在生成中
+  const isGenerating = (): boolean => {
+    return !!generatingTaskId.value
   }
 
   // 添加题目集合
@@ -202,7 +179,7 @@ export const useQuestionsStore = defineStore('questions', () => {
 
   return {
     questionSetsByKey,
-    generatingKey,
+    generatingTaskId,
     setGenerating,
     clearGenerating,
     isGenerating,

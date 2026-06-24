@@ -203,6 +203,48 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast 提示弹窗 -->
+    <Transition name="toast">
+      <div class="toast-overlay" v-if="toast.show" @click.self="closeToast">
+        <div class="toast-panel" :class="toast.type">
+          <div class="toast-icon">
+            <svg
+              v-if="toast.type === 'success'"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <svg
+              v-else-if="toast.type === 'error'"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <span class="toast-message">{{ toast.message }}</span>
+          <button class="toast-close" @click="closeToast">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -464,6 +506,31 @@ const registerError = ref<RegisterErrors>({
 const smsCodeCountdown = ref<number>(0)
 let smsTimer: number | null = null
 
+// Toast 提示弹窗状态
+const toast = ref<{
+  show: boolean
+  message: string
+  type: 'success' | 'error' | 'info'
+}>({
+  show: false,
+  message: '',
+  type: 'info',
+})
+
+// 显示提示弹窗
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  toast.value = { show: true, message, type }
+  // 3秒后自动关闭
+  setTimeout(() => {
+    closeToast()
+  }, 3000)
+}
+
+// 关闭提示弹窗
+function closeToast() {
+  toast.value.show = false
+}
+
 function clearPwdLoginFieldError(field: keyof PwdLoginErrors): void {
   pwdLoginError.value[field] = ''
 }
@@ -500,7 +567,7 @@ async function sendSmsLoginCode(): Promise<void> {
       return
     }
     smsLoginError.value.mobile = ''
-    alert('验证码认证信息:' + res.data)
+    showToast('验证码已发送', 'success')
     //启动倒计时
     smsCodeCountdown.value = 60
     if (smsTimer) clearInterval(smsTimer)
@@ -519,7 +586,7 @@ async function sendSmsLoginCode(): Promise<void> {
 
     const axiosErr = err as { response?: unknown }
     if (!axiosErr.response) {
-      alert('网络异常，请检查网络后重试，或稍后再试')
+      showToast('网络异常，请检查网络后重试', 'error')
     }
   }
 }
@@ -549,7 +616,7 @@ async function sendRegisterCode(): Promise<void> {
       return
     }
     registerError.value.mobile = ''
-    alert('验证码认证信息:' + res.data)
+    showToast('验证码已发送', 'success')
     //启动倒计时
     smsCodeCountdown.value = 60
     if (smsTimer) clearInterval(smsTimer)
@@ -616,7 +683,7 @@ async function handlePwdLogin(): Promise<void> {
     setTimeout(() => router.replace('/'), 0)
   } catch (err) {
     console.log('登录失败', err)
-    alert('登录失败: ' + err)
+    showToast('登录失败，请重试', 'error')
   } finally {
     pwdLoginLoading.value = false
   }
@@ -1092,6 +1159,113 @@ onUnmounted(() => {
   margin-top: 1.5rem;
   color: var(--text-secondary);
   opacity: 0.7;
+}
+
+/* ========= Toast 提示弹窗 ========= */
+.toast-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2rem;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+.toast-panel.success {
+  border-left: 4px solid #10b981;
+}
+
+.toast-panel.error {
+  border-left: 4px solid #ef4444;
+}
+
+.toast-panel.info {
+  border-left: 4px solid #3b82f6;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.toast-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.toast-panel.success .toast-icon {
+  color: #10b981;
+}
+
+.toast-panel.error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-panel.info .toast-icon {
+  color: #3b82f6;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #6b7280;
+}
+
+.toast-close svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Toast 动画 */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 
 /* ========= 响应式 ========= */

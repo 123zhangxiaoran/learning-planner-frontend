@@ -97,7 +97,7 @@ export function fetchSkillKnowledgePoints(
   })
 }
 
-// 生成学习路线（耗时操作，设置5分钟超时）
+// 生成学习路线（耗时操作，设置10分钟超时）
 export function generateLearningPath(
   data: GenerateLearningPathRequest,
 ): Promise<ApiResponse<GenerateLearningPathResponse>> {
@@ -105,7 +105,7 @@ export function generateLearningPath(
     url: '/agent/generateLearningPath',
     method: 'post',
     data,
-    timeout: 300000, // 5分钟超时
+    timeout: 600000, // 10分钟超时
   })
 }
 
@@ -168,7 +168,7 @@ export function reportPageData(
   })
 }
 
-// 生成专属题目（耗时操作，设置5分钟超时）
+// 生成专属题目（耗时操作，设置10分钟超时）
 export function generateQuestions(
   data: GenerateQuestionsRequest,
 ): Promise<ApiResponse<string>> {
@@ -176,7 +176,7 @@ export function generateQuestions(
     url: '/agent/generateQuestions',
     method: 'post',
     data,
-    timeout: 300000, // 5分钟超时
+    timeout: 600000, // 10分钟超时
   })
 }
 
